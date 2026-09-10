@@ -25,22 +25,32 @@ pub struct XsollaConfig {
     pub sandbox: bool,
     /// Store API origin. Production is `https://store.xsolla.com`; tests point elsewhere.
     pub store_url: String,
+    /// `true` pays every sandbox order headless through `scripts/autopay.py`,
+    /// so a tap completes without a click. Stands in for Xsolla Tokenization.
+    pub autopay: bool,
 }
 
 impl XsollaConfig {
-    /// Reads `XSOLLA_PROJECT_ID`, `XSOLLA_API_KEY` and `XSOLLA_SANDBOX` from the environment.
+    /// Reads `XSOLLA_PROJECT_ID`, `XSOLLA_API_KEY`, `XSOLLA_SANDBOX` and `TAPPAD_AUTOPAY`
+    /// from the environment.
     ///
     /// # Errors
-    /// Missing project id or API key.
+    /// Missing project id or API key, or `TAPPAD_AUTOPAY=true` outside the sandbox.
     pub fn from_env() -> anyhow::Result<Self> {
         let project_id = std::env::var("XSOLLA_PROJECT_ID")?;
         let api_key = SecretString::from(std::env::var("XSOLLA_API_KEY")?);
         let sandbox = std::env::var("XSOLLA_SANDBOX").map_or(true, |v| v != "false");
+        let autopay = std::env::var("TAPPAD_AUTOPAY").is_ok_and(|v| v == "true");
+        anyhow::ensure!(
+            sandbox || !autopay,
+            "TAPPAD_AUTOPAY=true only works with XSOLLA_SANDBOX=true"
+        );
         Ok(Self {
             project_id,
             api_key,
             sandbox,
             store_url: "https://store.xsolla.com".into(),
+            autopay,
         })
     }
 
@@ -128,6 +138,39 @@ pub fn parse_order_state(status: &str) -> Result<OrderState, ProviderError> {
     }
 }
 
+/// Pays a sandbox order headless with `scripts/autopay.py`, relative to the working
+/// directory. Tries `python3` then `python` so the same command works on Windows.
+async fn autopay(order_id: OrderId, checkout_url: String) {
+    let started = std::time::Instant::now();
+    let mut output = None;
+    for python in ["python3", "python"] {
+        match tokio::process::Command::new(python)
+            .arg("scripts/autopay.py")
+            .arg(&checkout_url)
+            .output()
+            .await
+        {
+            Ok(out) => {
+                output = Some(out);
+                break;
+            }
+            Err(e) => tracing::debug!(?order_id, python, "autopay spawn failed: {e}"),
+        }
+    }
+    let Some(out) = output else {
+        tracing::error!(?order_id, "autopay needs python3 or python on PATH");
+        return;
+    };
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let secs = started.elapsed().as_secs();
+    if out.status.success() {
+        tracing::info!(?order_id, secs, "autopay done: {}", stdout.trim());
+    } else {
+        tracing::error!(?order_id, secs, "autopay failed: {} {}", stdout.trim(), stderr.trim());
+    }
+}
+
 async fn failure(res: reqwest::Response) -> ProviderError {
     let status = res.status();
     let body = res.text().await.unwrap_or_default();
@@ -164,6 +207,9 @@ impl PaymentProvider for XsollaProvider {
         let checkout_url = self.config.checkout_url(&created.token);
         self.remember(order_id, created.token);
         tracing::info!(owner = %purchase.owner, sku = %purchase.sku, ?order_id, "xsolla order created");
+        if self.config.autopay {
+            tokio::spawn(autopay(order_id, checkout_url.clone()));
+        }
         Ok(CreatedOrder::Pending {
             order_id,
             checkout_url,
@@ -239,6 +285,7 @@ mod tests {
             api_key: SecretString::from("k"),
             sandbox: true,
             store_url: String::new(),
+            autopay: false,
         };
         assert!(config
             .checkout_url("t")
@@ -288,6 +335,7 @@ mod tests {
             api_key: SecretString::from("secret"),
             sandbox: true,
             store_url: fake_store().await?,
+            autopay: false,
         });
         let created = provider.create_order(&purchase()).await?;
         let CreatedOrder::Pending {

@@ -35,6 +35,13 @@ cp .env.example .env                         # fill in project id and API key, T
 make demo PORT=/dev/cu.usbserial-XXXX        # or scripts\demo.ps1 COM3 on Windows
 ```
 
+Tap-only, no click, sandbox only: set `TAPPAD_AUTOPAY=true` in `.env` and
+install the headless checkout once:
+
+```
+pip install playwright && playwright install chromium
+```
+
 ## Test
 
 ```
@@ -57,9 +64,11 @@ cargo test --workspace
 Real: the pad, the card read, order creation in the Xsolla sandbox, the
 sandbox checkout inside the game, order status polling.
 
-Mocked: tap-only completion. That needs Xsolla Tokenization, a partner feature.
-Today a tap creates the order and the player confirms with one click on the
-saved test card.
+Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
+partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
+sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
+tap completes with no click in about 45 seconds. Without the flag a tap creates
+the order and the player confirms with one click on the test card.
 
 ## Engineering decisions
 
