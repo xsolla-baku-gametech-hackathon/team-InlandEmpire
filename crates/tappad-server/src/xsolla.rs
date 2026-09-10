@@ -589,28 +589,88 @@ mod tests {
             .starts_with("https://secure.xsolla.com/"));
     }
 
-    /// A stand-in Store API on localhost answering the two calls the way the doc shows.
+    /// Base64 of `user:pass`, so the test can pin the exact Authorization header
+    /// without adding a crate for it.
+    fn basic(user: &str, pass: &str) -> String {
+        const ALPHABET: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let raw = format!("{user}:{pass}").into_bytes();
+        let mut out = String::new();
+        for chunk in raw.chunks(3) {
+            let b = [
+                chunk[0],
+                chunk.get(1).copied().unwrap_or(0),
+                chunk.get(2).copied().unwrap_or(0),
+            ];
+            let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+            for i in 0..4 {
+                if i <= chunk.len() {
+                    let idx = ((n >> (18 - 6 * i)) & 0x3f) as usize;
+                    out.push(char::from(ALPHABET[idx]));
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        format!("Basic {out}")
+    }
+
+    #[test]
+    fn basic_auth_encoding_matches_the_curl_in_the_doc() {
+        // `printf '937757:key' | base64` on the shell gives the same string.
+        assert_eq!(basic("937757", "key"), "Basic OTM3NzU3OmtleQ==");
+        assert_eq!(basic("a", "b"), "Basic YTpi");
+        assert_eq!(basic("ab", "c"), "Basic YWI6Yw==");
+    }
+
+    fn header<'a>(headers: &'a axum::http::HeaderMap, name: &str) -> &'a str {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+    }
+
+    /// A stand-in Store API on localhost answering the two calls the way the doc
+    /// shows. Bad input is answered with a status code, never a panic: a panic in
+    /// a spawned task surfaces at the client as a confusing connection error.
     async fn fake_store() -> anyhow::Result<String> {
         let app = Router::new()
             .route(
                 "/api/v3/project/{pid}/admin/payment/token",
-                post(|Json(body): Json<serde_json::Value>| async move {
-                    assert_eq!(body["purchase"]["items"][0]["sku"], "gems_500");
-                    (
-                        axum::http::StatusCode::CREATED,
-                        Json(serde_json::json!({ "token": "tok123", "order_id": 12345 })),
-                    )
-                }),
+                post(
+                    |headers: axum::http::HeaderMap, Json(body): Json<serde_json::Value>| async move {
+                        // `docs/xsolla.md` says the token call authenticates with
+                        // project id and API key. The items admin call is the one
+                        // that wants the merchant id.
+                        if header(&headers, "authorization") != basic("42", "secret") {
+                            return (axum::http::StatusCode::UNAUTHORIZED, Json(serde_json::json!({
+                                "error": "wrong basic auth username or key"
+                            })));
+                        }
+                        if body["purchase"]["items"][0]["sku"] != "gems_500" {
+                            return (axum::http::StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                                "error": "unexpected sku"
+                            })));
+                        }
+                        (
+                            axum::http::StatusCode::CREATED,
+                            Json(serde_json::json!({ "token": "tok123", "order_id": 12345 })),
+                        )
+                    },
+                ),
             )
             .route(
                 "/api/v2/project/{pid}/order/{oid}",
                 get(|headers: axum::http::HeaderMap| async move {
-                    let auth = headers
-                        .get("authorization")
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or_default();
-                    assert_eq!(auth, "Bearer tok123");
-                    Json(serde_json::json!({ "order_id": 12345, "status": "paid" }))
+                    if header(&headers, "authorization") != "Bearer tok123" {
+                        return (axum::http::StatusCode::UNAUTHORIZED, Json(serde_json::json!({
+                            "error": "the order call needs the payment token"
+                        })));
+                    }
+                    (
+                        axum::http::StatusCode::OK,
+                        Json(serde_json::json!({ "order_id": 12345, "status": "paid" })),
+                    )
                 }),
             );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
