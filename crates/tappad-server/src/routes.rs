@@ -3,9 +3,10 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{header, Method, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::provider::{CreatedOrder, PaymentProvider, ProviderError};
 use crate::registry::Registry;
@@ -21,10 +22,19 @@ pub struct AppState {
 }
 
 /// Builds the router.
+///
+/// The game page lives on another origin (`http://tauri.localhost`, `tauri://localhost`, or a
+/// dev server), so the browser preflights `POST /purchase`. The server binds to loopback and
+/// carries no credentials, so any origin is allowed.
 pub fn router(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::CONTENT_TYPE]);
     Router::new()
         .route("/purchase", post(purchase))
         .route("/orders/{id}", get(order))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -97,7 +107,7 @@ async fn order(
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
-    use axum::http::{header, Request, StatusCode};
+    use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
@@ -160,6 +170,31 @@ mod tests {
         let bytes = res.into_body().collect().await?.to_bytes();
         let status: OrderStatus = serde_json::from_slice(&bytes)?;
         assert_eq!(status.state, OrderState::Done);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn preflight_from_the_game_origin_is_allowed() -> anyhow::Result<()> {
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/purchase")
+            .header(header::ORIGIN, "http://tauri.localhost")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+            .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
+            .body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::OK);
+        let allow = res
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .and_then(|v| v.to_str().ok());
+        assert_eq!(allow, Some("*"));
+        let methods = res
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_METHODS)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        assert!(methods.contains("POST"), "{methods}");
         Ok(())
     }
 
