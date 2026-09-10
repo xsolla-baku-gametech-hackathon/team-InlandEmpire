@@ -23,8 +23,8 @@ this file when it has verified the condition. Owner initials in brackets.
 
 - [ ] `tappad-protocol` builds, tests pass [C]
 - [ ] CI green on `dev` [C]
-- [ ] `POST /purchase` with mock returns `approved` for Dad [A]
-- [ ] `POST /purchase` with mock returns `declined limit_exceeded` for Kid [A]
+- [x] `POST /purchase` with mock returns `approved` for Dad [A]
+- [x] `POST /purchase` with mock returns `declined limit_exceeded` for Kid [A]
 - [x] Tauri window shows shop and gem counter [B]
 - [ ] Firmware prints `{"event":"tap","uid":"..."}` per tap [H]
 - [ ] Mentor asked about Tokenization, answer written in README [A]
