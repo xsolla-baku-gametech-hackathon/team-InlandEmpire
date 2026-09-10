@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dad_is_approved() -> anyhow::Result<()> {
+    async fn gold_is_approved() -> anyhow::Result<()> {
         let (status, body) =
             post_purchase(app()?, r#"{"uid":"04A3B2C1","sku":"gems_500"}"#).await?;
         assert_eq!(status, StatusCode::OK);
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kid_is_declined_with_200() -> anyhow::Result<()> {
+    async fn starter_is_declined_with_200() -> anyhow::Result<()> {
         let (status, body) =
             post_purchase(app()?, r#"{"uid":"04D4E5F6","sku":"gems_500"}"#).await?;
         assert_eq!(status, StatusCode::OK);
