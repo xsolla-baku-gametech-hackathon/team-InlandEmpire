@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use secrecy::{ExposeSecret, SecretString};
@@ -72,15 +73,39 @@ pub struct XsollaProvider {
     tokens: Mutex<HashMap<OrderId, String>>,
 }
 
+/// How long to wait for the TCP and TLS handshake with the store.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// How long one whole store call may take. A stalled store must not park
+/// `POST /purchase` forever; the route turns a timeout into HTTP 502.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
 impl XsollaProvider {
     /// Builds a client for one project.
-    #[must_use]
-    pub fn new(config: XsollaConfig) -> Self {
-        Self {
-            http: reqwest::Client::new(),
+    ///
+    /// # Errors
+    /// The HTTP client cannot be built, for example when TLS fails to initialise.
+    pub fn new(config: XsollaConfig) -> Result<Self, ProviderError> {
+        Self::build(config, CONNECT_TIMEOUT, REQUEST_TIMEOUT)
+    }
+
+    /// [`XsollaProvider::new`] with the timeouts spelled out, so a test can use short ones.
+    fn build(
+        config: XsollaConfig,
+        connect: Duration,
+        request: Duration,
+    ) -> Result<Self, ProviderError> {
+        let http = reqwest::Client::builder()
+            .connect_timeout(connect)
+            .timeout(request)
+            .user_agent(concat!("tappad-server/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| ProviderError::Transport(format!("cannot build http client: {e}")))?;
+        Ok(Self {
+            http,
             config,
             tokens: Mutex::new(HashMap::new()),
-        }
+        })
     }
 
     fn remember(&self, order_id: OrderId, token: String) {
@@ -475,7 +500,7 @@ mod tests {
             sandbox: true,
             store_url: fake_store().await?,
             autopay: false,
-        });
+        })?;
         let created = provider.create_order(&purchase()).await?;
         let CreatedOrder::Pending {
             order_id,
@@ -494,6 +519,46 @@ mod tests {
             provider.order_state(OrderId(1)).await,
             Err(ProviderError::UnknownOrder(_))
         ));
+        Ok(())
+    }
+
+    /// A listener that accepts and then never answers, standing in for a hung store.
+    async fn stalled_store() -> anyhow::Result<String> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((socket, _)) = listener.accept().await {
+                held.push(socket);
+            }
+        });
+        Ok(format!("http://{addr}"))
+    }
+
+    #[tokio::test]
+    async fn a_stalled_store_times_out_as_a_transport_error() -> anyhow::Result<()> {
+        let provider = XsollaProvider::build(
+            XsollaConfig {
+                project_id: "42".into(),
+                api_key: SecretString::from("secret"),
+                sandbox: true,
+                store_url: stalled_store().await?,
+                autopay: false,
+            },
+            Duration::from_millis(200),
+            Duration::from_millis(200),
+        )?;
+        let started = std::time::Instant::now();
+        let err = provider.create_order(&purchase()).await;
+        assert!(
+            matches!(err, Err(ProviderError::Transport(_))),
+            "expected a transport error, got {err:?}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the call should give up quickly, took {:?}",
+            started.elapsed()
+        );
         Ok(())
     }
 }

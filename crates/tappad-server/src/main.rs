@@ -21,9 +21,11 @@ async fn main() -> anyhow::Result<()> {
     let provider_name = std::env::var("TAPPAD_PROVIDER").unwrap_or_else(|_| "mock".into());
     let provider: Arc<dyn PaymentProvider> = match provider_name.as_str() {
         "mock" => Arc::new(MockProvider::default()),
-        "xsolla" => Arc::new(XsollaProvider::new(XsollaConfig::from_env().context(
-            "TAPPAD_PROVIDER=xsolla needs XSOLLA_PROJECT_ID and XSOLLA_API_KEY",
-        )?)),
+        "xsolla" => {
+            let config = XsollaConfig::from_env()
+                .context("TAPPAD_PROVIDER=xsolla needs XSOLLA_PROJECT_ID and XSOLLA_API_KEY")?;
+            Arc::new(XsollaProvider::new(config)?)
+        }
         other => anyhow::bail!("TAPPAD_PROVIDER={other} is not one of: mock, xsolla"),
     };
     let addr =
