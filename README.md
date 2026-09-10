@@ -70,6 +70,36 @@ sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
 tap completes with no click in about 45 seconds. Without the flag a tap creates
 the order and the player confirms with one click on the test card.
 
+The server keeps its state in memory. Order tokens, per-card spend and the
+double-tap cache go away on restart, and an order created before a restart is
+unknown afterwards: `GET /orders/{id}` answers 404 for it.
+
+The spending limit is checked twice, and neither check is complete on its own.
+Before the order is created the server compares its own catalogue price against
+the card's limit. The token request sends only a SKU, so Xsolla charges whatever
+its catalogue says; when the order is polled the server therefore also refuses
+to report it paid if the answer carries an amount above the limit. That amount
+field is taken from the Xsolla docs and has not yet been confirmed against a
+real response, so on the day the second check may simply never fire. The server
+logs a warning at startup when a local price differs from the store's.
+
+With `TAPPAD_AUTOPAY=true` the server launches a headless Chromium through
+`scripts/autopay.py` for every sandbox order, at most two at a time, each given
+up on after two minutes. It needs Python and Playwright on `PATH`.
+
+## Threat model
+
+The server is built for one laptop or a trusted LAN, and it is not hardened for
+anything else. It has no authentication. The card UID is not a secret: anyone
+who can read a card, or guess a UID, can post a purchase for it, which is why
+the per-tap limit, the per-card cap (`TAPPAD_CARD_CAP_CENTS`, $500 by default)
+and the three second double-tap window exist. Only the game's own origins may
+call it from a browser, and it refuses to listen on anything but loopback
+unless `TAPPAD_ALLOW_REMOTE=1` says otherwise. The Xsolla API key is read once
+into a `SecretString`, never logged and never sent to the game; upstream errors
+are logged in full but reach the page as a fixed sentence. The bridge prints
+card UIDs at `info` so new cards can be read off the log and enrolled.
+
 ## Engineering decisions
 
 - Money is integer cents.
