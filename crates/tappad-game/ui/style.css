@@ -80,3 +80,26 @@ footer {
 }
 
 #status[data-state="waiting_for_tap"] { color: var(--gold); }
+
+#status[data-state="tap_detected"] { color: #7ed957; }
+#status[data-state="error"] { color: #ff6b6b; }
+
+.devbar {
+  margin: 12px 0 0;
+  font-size: 13px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
+}
+#bridge-link[data-up="true"] { color: #7ed957; }
+#bridge-link[data-up="false"] { color: var(--muted); }
+.dev {
+  padding: 4px 10px;
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
