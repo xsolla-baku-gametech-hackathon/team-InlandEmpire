@@ -353,6 +353,25 @@ pub struct OrderStatus {
     pub state: OrderState,
 }
 
+/// One item of the `GET /catalog` answer, the shop page renders a list of these.
+///
+/// Wire: `{"sku":"gems_100","name":"100 gems","description":"100 gems","price":99,"currency":"USD","image_url":null}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CatalogItem {
+    /// What to send in [`PurchaseRequest`].
+    pub sku: Sku,
+    /// Display name from the store.
+    pub name: String,
+    /// Display text from the store.
+    pub description: String,
+    /// Price in minor units.
+    pub price: Cents,
+    /// ISO 4217 code, `USD` for the demo project.
+    pub currency: String,
+    /// Picture from the store, if one was uploaded.
+    pub image_url: Option<String>,
+}
+
 // -------------------------------------------------------------------- errors
 
 /// Body of any non-2xx answer from the server, for example HTTP 502 when the
