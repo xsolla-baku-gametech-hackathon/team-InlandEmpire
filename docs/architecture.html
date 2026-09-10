@@ -1,0 +1,165 @@
+<!doctype html>
+<!--
+Source of docs/architecture.png. Edit this, then render at 2x:
+
+  python3 -c "from playwright.sync_api import sync_playwright as P
+with P() as p:
+    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1810, 'height': 1091}, device_scale_factor=2)
+    pg.goto('file://' + __import__('os').path.abspath('docs/architecture.html')); pg.wait_for_timeout(300)
+    pg.locator('#page').screenshot(path='docs/architecture.png'); b.close()"
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TapPad architecture</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f6f7f8; font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1f2328; }
+  #page { position: relative; width: 1810px; height: 1091px; background: #f6f7f8; overflow: hidden; }
+  .abs { position: absolute; }
+  code, .mono { font-family: Menlo, "JetBrains Mono", monospace; }
+  .eyebrow { left: 40px; top: 48px; font-size: 13px; letter-spacing: 3px; color: #6b7280; }
+  .title { left: 40px; top: 72px; font-size: 42px; font-weight: 700; letter-spacing: -0.5px; }
+  .subtitle { left: 40px; top: 126px; width: 760px; font-size: 18px; line-height: 24px; color: #374151; }
+  .legend { right: 40px; top: 150px; font-size: 14px; color: #374151; display: flex; gap: 22px; align-items: center; }
+  .legend .line { display: inline-block; width: 26px; height: 3px; vertical-align: middle; margin-right: 8px; }
+  .legend .box { display: inline-block; width: 14px; height: 14px; background: #e3e5e8; border: 1px solid #c7cbd1; vertical-align: middle; margin-right: 8px; border-radius: 3px; }
+  .pill { left: 80px; top: 225px; width: 200px; height: 46px; border: 1px solid #c7cbd1; border-radius: 23px; background: #fff; text-align: center; line-height: 44px; font-weight: 700; font-size: 16px; }
+  .zone { border-radius: 12px; background: #e6edf5; }
+  .zone.outside { background: #e3e5e8; }
+  .zone .name { position: absolute; left: 26px; top: 10px; font-size: 12px; letter-spacing: 2.5px; color: #6b7280; }
+  .card { background: #fff; border: 1px solid #d0d7de; border-radius: 10px; padding: 22px 22px 18px; width: 280px; height: 250px; }
+  .card h3 { margin: 0 0 12px; font-size: 20px; display: flex; justify-content: space-between; align-items: baseline; }
+  .card h3 span { font-size: 12px; font-weight: 400; color: #6b7280; font-family: Menlo, monospace; }
+  .card p { margin: 0 0 12px; font-size: 14px; line-height: 20px; }
+  .card pre { margin: 0; background: #f3f4f6; border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 17px; }
+  .card .foot { position: absolute; left: 22px; right: 22px; bottom: 16px; font-size: 12px; line-height: 16px; color: #4b5563; }
+  .card .step { display: flex; gap: 10px; align-items: center; font-size: 14px; margin: 6px 0; }
+  .n { display: inline-block; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #2b6cb0; color: #fff; font-size: 12px; font-weight: 700; text-align: center; line-height: 22px; }
+  .label { font-size: 14px; color: #1f2328; white-space: nowrap; }
+  .label b { margin-right: 4px; }
+  .label.red { color: #c53030; }
+  .label.center { text-align: center; }
+  .info { background: #fff; border: 1px solid #d0d7de; border-radius: 10px; padding: 20px 22px; width: 555px; height: 150px; }
+  .info h4 { margin: 0 0 8px; font-size: 16px; }
+  .info p { margin: 0; font-size: 14px; line-height: 21px; color: #374151; }
+  svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="page">
+  <div class="abs eyebrow">HACKATHON PROJECT · ARCHITECTURE</div>
+  <div class="abs title">TapPad</div>
+  <div class="abs subtitle">Tap a card on a USB pad, pay inside the game window, get the item. Follow the numbers 1 to 10 for one purchase.</div>
+  <div class="abs legend">
+    <span><span class="line" style="background:#2b6cb0"></span>happy path</span>
+    <span><span class="line" style="background:#c53030"></span>declined path</span>
+    <span><span class="box"></span>outside our code</span>
+  </div>
+
+  <div class="abs pill">Player</div>
+
+  <div class="abs zone" style="left:16px;top:432px;width:330px;height:320px"><div class="name">ON THE PAD</div></div>
+  <div class="abs zone" style="left:432px;top:432px;width:1018px;height:320px"><div class="name">ON THE PLAYER'S PC</div></div>
+  <div class="abs zone outside" style="left:1466px;top:432px;width:330px;height:320px"><div class="name">OUTSIDE · SOMEONE ELSE RUNS THIS</div></div>
+
+  <div class="abs card" style="left:40px;top:470px">
+    <h3>Pad firmware <span>C++ (Arduino)</span></h3>
+    <p>Reads the card ID and prints one line. That is its only job.</p>
+    <pre>{"event":"tap",
+ "uid":"04A3B2C1"}</pre>
+    <div class="foot">ESP32 + RC522 NFC reader, two piezo buzzers</div>
+  </div>
+
+  <div class="abs card" style="left:470px;top:470px">
+    <h3>Bridge <span>Rust</span></h3>
+    <p>Reads the USB serial port, forwards every line to a local WebSocket.</p>
+    <pre>ws://localhost:8765</pre>
+    <div class="foot"><code>--fake</code> emits a tap every 5 s, so you can build with no hardware.</div>
+  </div>
+
+  <div class="abs card" style="left:810px;top:470px">
+    <h3>Server <span>Rust (axum) :8080</span></h3>
+    <p>Checks the card's limit, then asks Xsolla for an order.</p>
+    <pre>GET  /catalog
+POST /purchase {uid, sku}
+GET  /orders/{id}</pre>
+    <div class="foot">Registry: Gold $50 · Silver $10 · Starter $1 · Blocked $0 per tap, $500 cap per card, USD. Xsolla API key never leaves here.</div>
+  </div>
+
+  <div class="abs card" style="left:1150px;top:470px">
+    <h3>Game <span>Tauri · Rust + HTML</span></h3>
+    <p>Shop page with a gem counter. Buys, shows checkout, adds gems.</p>
+    <div class="step"><span class="n">1</span>Player clicks Buy</div>
+    <div class="step"><span class="n">9</span>Confirms on the checkout page</div>
+    <div class="foot">Checkout opens in an iframe in the same window. Mock provider: gems land at step 7.</div>
+  </div>
+
+  <div class="abs card" style="left:1490px;top:470px">
+    <h3>Xsolla <span>external</span></h3>
+    <p>Creates the payment token, then reports whether the order is paid.</p>
+    <pre>sandbox-secure.xsolla.com</pre>
+    <div class="foot">The token also opens the checkout page.</div>
+  </div>
+
+  <!-- arrow labels -->
+  <div class="abs label" style="left:200px;top:345px"><b>2</b>taps a card on the pad</div>
+  <div class="abs label center" style="left:322px;top:548px;width:146px;white-space:normal;line-height:18px"><b>3</b>one JSON line over USB serial</div>
+  <div class="abs label center" style="left:610px;top:876px;width:720px"><b>4</b>tap forwarded over the WebSocket</div>
+  <div class="abs label" style="left:1070px;top:398px"><b>5</b>POST /purchase {uid, sku}</div>
+  <div class="abs label" style="left:1180px;top:256px"><b>6</b>create payment token → {token, order_id}</div>
+  <div class="abs label red" style="left:960px;top:290px;line-height:18px;white-space:normal;width:600px"><b>6b</b>Blocked card, or item over the card's limit → {status:"declined", reason:"limit_exceeded"} · Xsolla never called</div>
+  <div class="abs label" style="left:960px;top:348px"><b>7</b>{order_id, checkout_url}</div>
+  <div class="abs label" style="left:1400px;top:806px"><b>8</b>checkout page loads in the iframe</div>
+  <div class="abs label" style="left:1015px;top:800px"><b>10</b>poll GET /orders/{id} every 0.8 s</div>
+
+  <div class="abs info" style="left:40px;top:910px">
+    <h4>One shared crate: <code>tappad-protocol</code></h4>
+    <p>Holds the message types: CardUid, Cents, Sku, OrderId, PadEvent. Bridge, server, game and SDK all import it, so field names cannot drift. The firmware follows the same JSON shape by hand.</p>
+  </div>
+  <div class="abs info" style="left:625px;top:910px">
+    <h4>Two payment providers behind one interface</h4>
+    <p>The server's PaymentProvider has two implementations: Xsolla and Mock. One environment variable switches them. Mock approves instantly after the registry check, so the whole demo runs offline.</p>
+  </div>
+  <div class="abs info" style="left:1210px;top:910px">
+    <h4>Where things run</h4>
+    <p>Firmware runs on the pad. Bridge, server and game are three separate processes on the player's PC. Xsolla is the only thing off the machine.</p>
+  </div>
+
+  <svg id="arrows" width="1810" height="1091"></svg>
+</div>
+<script>
+  // Each arrow: points as [x, y] pairs, colour, dashed. Arrowhead on the last point.
+  const blue = "#2b6cb0", red = "#c53030", grey = "#6b7280";
+  const arrows = [
+    { pts: [[180, 271], [180, 468]], c: grey },                                      // 2 player taps
+    { pts: [[320, 595], [468, 595]], c: blue },                                      // 3 serial
+    { pts: [[610, 720], [610, 870], [1330, 870], [1330, 722]], c: blue },            // 4 websocket
+    { pts: [[1300, 470], [1300, 420], [1050, 420], [1050, 468]], c: blue },          // 5 POST /purchase
+    { pts: [[850, 470], [850, 280], [1630, 280], [1630, 468]], c: blue },            // 6 token
+    { pts: [[900, 470], [900, 330], [1400, 330], [1400, 468]], c: red, dash: true }, // 6b declined
+    { pts: [[950, 470], [950, 370], [1350, 370], [1350, 468]], c: blue },            // 7 order_id
+    { pts: [[1630, 720], [1630, 800], [1380, 800], [1380, 722]], c: blue },          // 8 iframe
+    { pts: [[1250, 720], [1250, 790], [1000, 790], [1000, 722]], c: blue },          // 10 poll
+  ];
+  const svg = document.getElementById("arrows");
+  const ns = "http://www.w3.org/2000/svg";
+  let defs = `<defs>`;
+  for (const [id, c] of [["blue", blue], ["red", red], ["grey", grey]]) {
+    defs += `<marker id="m-${id}" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`;
+  }
+  svg.innerHTML = defs + `</defs>`;
+  for (const a of arrows) {
+    const id = a.c === blue ? "blue" : a.c === red ? "red" : "grey";
+    const el = document.createElementNS(ns, "polyline");
+    el.setAttribute("points", a.pts.map(p => p.join(",")).join(" "));
+    el.setAttribute("fill", "none");
+    el.setAttribute("stroke", a.c);
+    el.setAttribute("stroke-width", "2.5");
+    if (a.dash) el.setAttribute("stroke-dasharray", "7 6");
+    el.setAttribute("marker-end", `url(#m-${id})`);
+    svg.appendChild(el);
+  }
+</script>
+</body>
+</html>
