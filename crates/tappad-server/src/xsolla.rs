@@ -1,8 +1,8 @@
 //! Xsolla Store API as a [`PaymentProvider`]. Two calls, both documented in `docs/xsolla.md`.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::Duration;
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use secrecy::{ExposeSecret, SecretString};
@@ -65,12 +65,21 @@ impl XsollaConfig {
     }
 }
 
+/// One order's payment token and when it was stored.
+struct Remembered {
+    token: String,
+    at: Instant,
+}
+
 /// Xsolla-backed provider. Remembers the payment token of every order it created,
 /// because order status is read with that token as Bearer.
+///
+/// The store is in memory only: restarting the server forgets every order, and
+/// `GET /orders/{id}` then answers 404 for one created before the restart.
 pub struct XsollaProvider {
     http: reqwest::Client,
     config: XsollaConfig,
-    tokens: Mutex<HashMap<OrderId, String>>,
+    tokens: Mutex<HashMap<OrderId, Remembered>>,
 }
 
 /// How long to wait for the TCP and TLS handshake with the store.
@@ -79,6 +88,28 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 /// How long one whole store call may take. A stalled store must not park
 /// `POST /purchase` forever; the route turns a timeout into HTTP 502.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long a payment token is worth keeping. The game stops polling at a final
+/// state long before this; anything older is a checkout nobody finished.
+const TOKEN_TTL: Duration = Duration::from_secs(2 * 60 * 60);
+
+/// Ceiling on remembered orders, so a long run cannot grow without bound.
+const MAX_TOKENS: usize = 10_000;
+
+/// Drops tokens older than [`TOKEN_TTL`], then the oldest ones if still over
+/// [`MAX_TOKENS`].
+fn evict(tokens: &mut HashMap<OrderId, Remembered>) {
+    let now = Instant::now();
+    tokens.retain(|_, r| now.duration_since(r.at) < TOKEN_TTL);
+    if tokens.len() <= MAX_TOKENS {
+        return;
+    }
+    let mut ages: Vec<(OrderId, Instant)> = tokens.iter().map(|(id, r)| (*id, r.at)).collect();
+    ages.sort_by_key(|(_, at)| *at);
+    for (id, _) in ages.into_iter().take(tokens.len() - MAX_TOKENS) {
+        tokens.remove(&id);
+    }
+}
 
 impl XsollaProvider {
     /// Builds a client for one project.
@@ -108,14 +139,27 @@ impl XsollaProvider {
         })
     }
 
+    /// Takes the token lock, recovering from a poisoned one. A panic while a
+    /// `HashMap` insert is in flight cannot leave it inconsistent, and dropping
+    /// every token because one unrelated task panicked would end the demo.
+    fn tokens(&self) -> std::sync::MutexGuard<'_, HashMap<OrderId, Remembered>> {
+        self.tokens.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn remember(&self, order_id: OrderId, token: String) {
-        if let Ok(mut tokens) = self.tokens.lock() {
-            tokens.insert(order_id, token);
-        }
+        let mut tokens = self.tokens();
+        tokens.insert(
+            order_id,
+            Remembered {
+                token,
+                at: Instant::now(),
+            },
+        );
+        evict(&mut tokens);
     }
 
     fn token_for(&self, order_id: OrderId) -> Option<String> {
-        self.tokens.lock().ok()?.get(&order_id).cloned()
+        self.tokens().get(&order_id).map(|r| r.token.clone())
     }
 }
 
@@ -519,6 +563,48 @@ mod tests {
             provider.order_state(OrderId(1)).await,
             Err(ProviderError::UnknownOrder(_))
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn eviction_drops_stale_tokens_and_caps_the_map() -> anyhow::Result<()> {
+        let mut tokens = HashMap::new();
+        let stale = Instant::now()
+            .checked_sub(TOKEN_TTL + Duration::from_secs(1))
+            .ok_or_else(|| anyhow::anyhow!("this machine booted less than the TTL ago"))?;
+        tokens.insert(
+            OrderId(1),
+            Remembered {
+                token: "old".into(),
+                at: stale,
+            },
+        );
+        tokens.insert(
+            OrderId(2),
+            Remembered {
+                token: "fresh".into(),
+                at: Instant::now(),
+            },
+        );
+        evict(&mut tokens);
+        assert!(!tokens.contains_key(&OrderId(1)), "a stale token must go");
+        assert!(tokens.contains_key(&OrderId(2)), "a fresh token must stay");
+
+        let base = Instant::now();
+        let over = u64::try_from(MAX_TOKENS)
+            .unwrap_or(u64::MAX)
+            .saturating_add(10);
+        for i in 0..over {
+            tokens.insert(
+                OrderId(1000 + i),
+                Remembered {
+                    token: format!("t{i}"),
+                    at: base + Duration::from_millis(i),
+                },
+            );
+        }
+        evict(&mut tokens);
+        assert_eq!(tokens.len(), MAX_TOKENS, "the map must stay bounded");
         Ok(())
     }
 
