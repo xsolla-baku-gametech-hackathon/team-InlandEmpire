@@ -1,6 +1,6 @@
 //! The one handle a game holds: the pad on one side, the server on the other.
 
-use tappad_protocol::{CardUid, CatalogItem, OrderId, OrderState, PurchaseResponse, Sku};
+use tappad_protocol::{CardUid, CatalogItem, OrderId, OrderState, PadEvent, PurchaseResponse, Sku};
 
 use crate::{Config, Pad, SdkError, ServerClient};
 
@@ -51,6 +51,12 @@ impl TapPad {
     /// Waits for a card on the pad. See [`Pad::next_tap`].
     pub async fn next_tap(&mut self) -> CardUid {
         self.pad.next_tap().await
+    }
+
+    /// Waits for any pad event, so a game can show "pad ready" or a reader
+    /// error instead of only reacting to taps. See [`Pad::next_event`].
+    pub async fn next_event(&mut self) -> PadEvent {
+        self.pad.next_event().await
     }
 
     /// Buys `sku` with the tapped card. See [`ServerClient::purchase`].
