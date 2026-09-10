@@ -25,7 +25,7 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] CI green on `dev` [C]
 - [ ] `POST /purchase` with mock returns `approved` for Dad [AB]
 - [ ] `POST /purchase` with mock returns `declined limit_exceeded` for Kid [AB]
-- [ ] Tauri window shows shop and gem counter [AB]
+- [x] Tauri window shows shop and gem counter [AB]
 - [ ] Firmware prints `{"event":"tap","uid":"..."}` per tap [H]
 - [ ] Mentor asked about Tokenization, answer written in README [AB]
 
