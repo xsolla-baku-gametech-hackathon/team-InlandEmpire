@@ -206,7 +206,7 @@ mod tests {
 
     fn purchase() -> Cleared {
         Cleared {
-            owner: "Dad".into(),
+            owner: "Gold".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
         }
@@ -216,7 +216,7 @@ mod tests {
     fn request_body_matches_doc() {
         let body = token_request(&purchase(), true);
         assert_eq!(body["sandbox"], true);
-        assert_eq!(body["user"]["id"]["value"], "dad");
+        assert_eq!(body["user"]["id"]["value"], "gold");
         assert_eq!(body["user"]["country"]["value"], "US");
         assert_eq!(body["purchase"]["items"][0]["sku"], "gems_500");
         assert_eq!(body["settings"]["ui"]["layout"], "embed");

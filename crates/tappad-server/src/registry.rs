@@ -54,8 +54,8 @@ impl Registry {
         };
         Self {
             cards: [
-                ("04A3B2C1".parse(), card("Dad", 5_000)),
-                ("04D4E5F6".parse(), card("Kid", 100)),
+                ("04A3B2C1".parse(), card("Gold", 5_000)),
+                ("04D4E5F6".parse(), card("Starter", 100)),
             ]
             .into_iter()
             .filter_map(|(uid, card)| uid.ok().map(|uid| (uid, card)))

@@ -5,7 +5,7 @@ use std::time::Duration;
 use tappad_protocol::{CardUid, PadEvent};
 use tokio::sync::broadcast;
 
-/// Demo cards the fake pad alternates between: Dad, then Kid.
+/// Demo cards the fake pad alternates between: Gold, then Starter.
 pub const FAKE_UIDS: [&str; 2] = ["04A3B2C1", "04D4E5F6"];
 
 /// Serialises an event to the one-line JSON the game expects.

@@ -1,9 +1,9 @@
 // Dev-only stand-in for tappad-server so the page can be built before the server answers.
-// Mirrors the mock provider's registry in PLAN.md: Dad pays, Kid is over the limit.
+// Mirrors the mock provider's registry in PLAN.md: Gold pays, Starter is over the limit.
 // Never used unless the "Fake server (dev)" box in the footer is ticked.
 
-const DAD = "04A3B2C1";
-const KID = "0B1C2D3E";
+const GOLD = "04A3B2C1";
+const STARTER = "04D4E5F6";
 const SKUS = new Set(["gems_100", "gems_500", "gems_1200"]);
 
 export function createFakeServer() {
@@ -12,8 +12,8 @@ export function createFakeServer() {
     async purchase({ uid, sku }) {
       await delay(300);
       if (!SKUS.has(sku)) return { status: "declined", reason: "unknown_sku" };
-      if (uid === KID) return { status: "declined", reason: "limit_exceeded" };
-      if (uid !== DAD) return { status: "declined", reason: "unknown_card" };
+      if (uid === STARTER) return { status: "declined", reason: "limit_exceeded" };
+      if (uid !== GOLD) return { status: "declined", reason: "unknown_card" };
       const id = nextOrder++;
       return {
         status: "approved",

@@ -16,8 +16,8 @@ const el = {
   checkout: document.getElementById("checkout"),
   checkoutFrame: document.getElementById("checkout-frame"),
   checkoutCancel: document.getElementById("checkout-cancel"),
-  fakeTapDad: document.getElementById("fake-tap-dad"),
-  fakeTapKid: document.getElementById("fake-tap-kid"),
+  fakeTapGold: document.getElementById("fake-tap-gold"),
+  fakeTapStarter: document.getElementById("fake-tap-starter"),
   fakeServer: document.getElementById("fake-server"),
 };
 
@@ -114,8 +114,8 @@ connectBridge(BRIDGE_URL, {
   },
 });
 
-// Dev tools, no hardware: inject a Dad or Kid tap as if the bridge sent it.
-el.fakeTapDad.addEventListener("click", () => dispatch({ type: "tap", uid: "04A3B2C1" }));
-el.fakeTapKid.addEventListener("click", () => dispatch({ type: "tap", uid: "0B1C2D3E" }));
+// Dev tools, no hardware: inject a Gold or Starter tap as if the bridge sent it.
+el.fakeTapGold.addEventListener("click", () => dispatch({ type: "tap", uid: "04A3B2C1" }));
+el.fakeTapStarter.addEventListener("click", () => dispatch({ type: "tap", uid: "0B1C2D3E" }));
 
 render(state);

@@ -82,7 +82,7 @@ mod tests {
 
     fn purchase() -> Cleared {
         Cleared {
-            owner: "Dad".into(),
+            owner: "Gold".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
         }

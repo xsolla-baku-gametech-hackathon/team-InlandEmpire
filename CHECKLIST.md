@@ -23,8 +23,8 @@ this file when it has verified the condition. Owner initials in brackets.
 
 - [x] `tappad-protocol` builds, tests pass [C]
 - [ ] CI green on `dev` [C]
-- [x] `POST /purchase` with mock returns `approved` for Dad [A]
-- [x] `POST /purchase` with mock returns `declined limit_exceeded` for Kid [A]
+- [x] `POST /purchase` with mock returns `approved` for Gold [A]
+- [x] `POST /purchase` with mock returns `declined limit_exceeded` for Starter [A]
 - [x] Tauri window shows shop and gem counter [B]
 - [ ] Firmware prints `{"event":"tap","uid":"..."}` per tap [H]
 - [ ] Mentor asked about Tokenization, answer written in README [A]
@@ -65,7 +65,7 @@ this file when it has verified the condition. Owner initials in brackets.
 
 ## Checkpoint 18:00, tag `v0.3.0-demo`
 
-- [ ] Dad pays, Kid declined, on the real pad
+- [ ] Gold pays, Starter declined, on the real pad
 - [ ] `dev` merged to `main`, tagged [C]
 
 ## Sept 11
