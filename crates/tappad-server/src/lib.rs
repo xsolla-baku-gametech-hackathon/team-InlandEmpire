@@ -2,4 +2,5 @@
 
 pub mod provider;
 pub mod registry;
+pub mod routes;
 pub mod types;
