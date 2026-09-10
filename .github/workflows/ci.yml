@@ -27,7 +27,7 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Game page tests
-        run: node --test crates/tappad-game/ui-tests
+        run: node --test "crates/tappad-game/ui-tests/*.test.mjs"
       - name: No secrets committed
         run: |
           ! git grep -nE 'XSOLLA_API_KEY=[A-Za-z0-9]{8,}' -- ':!.env.example'

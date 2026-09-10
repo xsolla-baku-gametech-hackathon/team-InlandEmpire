@@ -1,4 +1,4 @@
-// Run with: node --test crates/tappad-game/ui-tests
+// Run with: node --test "crates/tappad-game/ui-tests/*.test.mjs"
 // Pins the pad event shapes from docs/protocol.md on the game side.
 import { test } from "node:test";
 import assert from "node:assert/strict";
