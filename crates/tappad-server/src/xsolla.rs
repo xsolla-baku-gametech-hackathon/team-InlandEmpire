@@ -93,7 +93,7 @@ pub fn token_request(purchase: &Cleared, sandbox: bool) -> serde_json::Value {
             "id": { "value": purchase.owner.to_lowercase() },
             "country": { "value": "US", "allow_modify": false }
         },
-        "purchase": { "items": [ { "sku": purchase.sku.0, "quantity": 1 } ] },
+        "purchase": { "items": [ { "sku": purchase.sku.as_str(), "quantity": 1 } ] },
         "settings": { "ui": { "layout": "embed", "theme": EMBED_THEME } }
     })
 }
@@ -163,7 +163,7 @@ impl PaymentProvider for XsollaProvider {
         let order_id = OrderId(created.order_id);
         let checkout_url = self.config.checkout_url(&created.token);
         self.remember(order_id, created.token);
-        tracing::info!(owner = %purchase.owner, sku = %purchase.sku.0, ?order_id, "xsolla order created");
+        tracing::info!(owner = %purchase.owner, sku = %purchase.sku, ?order_id, "xsolla order created");
         Ok(CreatedOrder::Pending {
             order_id,
             checkout_url,
@@ -207,7 +207,7 @@ mod tests {
     fn purchase() -> Cleared {
         Cleared {
             owner: "Dad".into(),
-            sku: Sku("gems_500".into()),
+            sku: Sku::new("gems_500"),
             price: Cents(499),
         }
     }
