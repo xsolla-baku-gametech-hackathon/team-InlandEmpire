@@ -47,7 +47,7 @@ library code, no secrets, CI green. Then merge with a merge commit. Squash
 throws away commits, and commits are counted for a prize.
 
 ```
-gh pr merge --merge --delete-branch
+gh pr merge --merge
 ```
 
 ## Checkpoint flow, C only
@@ -61,7 +61,8 @@ git tag v0.1.0-mock
 git push origin main --tags
 ```
 
-Never force-push `main` or `dev`. Never commit `.env`.
+Never force-push `main` or `dev`. Never delete a branch, merged or not: the
+history of who did what stays visible. Never commit `.env`.
 
 ## Rules that keep commits countable and honest
 
