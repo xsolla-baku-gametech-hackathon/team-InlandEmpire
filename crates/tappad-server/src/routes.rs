@@ -3,10 +3,10 @@
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
-use axum::http::{header, Method, StatusCode};
+use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::provider::{CreatedOrder, PaymentProvider, ProviderError};
 use crate::registry::Registry;
@@ -21,14 +21,25 @@ pub struct AppState {
     pub provider: Arc<dyn PaymentProvider>,
 }
 
+/// Origins the game is served from: the two Tauri webview origins, and the
+/// `python -m http.server` preview in `.claude/launch.json`. `from_static` is
+/// const, so a typo here fails the build instead of dropping an origin.
+const GAME_ORIGINS: [HeaderValue; 4] = [
+    HeaderValue::from_static("tauri://localhost"),
+    HeaderValue::from_static("http://tauri.localhost"),
+    HeaderValue::from_static("http://localhost:8790"),
+    HeaderValue::from_static("http://127.0.0.1:8790"),
+];
+
 /// Builds the router.
 ///
-/// The game page lives on another origin (`http://tauri.localhost`, `tauri://localhost`, or a
-/// dev server), so the browser preflights `POST /purchase`. The server binds to loopback and
-/// carries no credentials, so any origin is allowed.
+/// The game page lives on another origin (`http://tauri.localhost`, `tauri://localhost`, or the
+/// dev preview), so the browser preflights `POST /purchase`. Only those origins are allowed: the
+/// server has no authentication, so any page the browser lets through could spend a known card.
 pub fn router(state: AppState) -> Router {
+    let origins = AllowOrigin::list(GAME_ORIGINS);
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(origins)
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([header::CONTENT_TYPE]);
     Router::new()
@@ -194,13 +205,31 @@ mod tests {
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
             .and_then(|v| v.to_str().ok());
-        assert_eq!(allow, Some("*"));
+        assert_eq!(allow, Some("http://tauri.localhost"));
         let methods = res
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_METHODS)
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default();
         assert!(methods.contains("POST"), "{methods}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn preflight_from_a_foreign_origin_is_refused() -> anyhow::Result<()> {
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/purchase")
+            .header(header::ORIGIN, "https://evil.example")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+            .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
+            .body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+        assert_eq!(
+            res.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            None,
+            "a foreign origin must not be told it may call this server"
+        );
         Ok(())
     }
 
