@@ -1,12 +1,25 @@
 // The shop state machine. Pure: (state, event) -> { state, effects }.
 // Every transition lives here so the flow in docs/protocol.md is readable in one file.
 
-/** Gems granted per SKU. Must match the server catalogue. */
-export const CATALOGUE = Object.freeze({
-  gems_100: 100,
-  gems_500: 500,
-  gems_1200: 1200,
-});
+/**
+ * Items shown until `GET /catalog` answers, and what the tests run against.
+ * Same three packs as the mock provider. Prices in cents.
+ */
+export const DEFAULT_ITEMS = Object.freeze([
+  { sku: "gems_100", name: "100 gems", description: "100 gems", price: 99, currency: "USD", image_url: null },
+  { sku: "gems_500", name: "500 gems", description: "500 gems", price: 499, currency: "USD", image_url: null },
+  { sku: "gems_1200", name: "1200 gems", description: "1200 gems", price: 999, currency: "USD", image_url: null },
+]);
+
+/** Gems a catalogue item grants: the number in its name, `"500 gems"` -> 500. */
+export function gemsFor(item) {
+  const m = /(\d+)/.exec(item?.name ?? "");
+  return m ? Number(m[1]) : 0;
+}
+
+function itemFor(state, sku) {
+  return state.items.find((i) => i.sku === sku);
+}
 
 /** How often the game asks `GET /orders/{id}` while the checkout is open. */
 export const POLL_MS = 800;
@@ -19,14 +32,23 @@ export const DECLINE_TEXT = Object.freeze({
   unknown_sku: "That item is not for sale.",
 });
 
-export const initialState = Object.freeze({ name: "browsing", gems: 0, note: "Pick an item." });
+export const initialState = Object.freeze({
+  name: "browsing",
+  gems: 0,
+  note: "Pick an item.",
+  items: DEFAULT_ITEMS,
+});
 
 /**
  * @param {object} state  current state
- * @param {object} event  one of: buy, tap, response, order, failure, dismiss
+ * @param {object} event  one of: catalog, buy, tap, response, order, failure, dismiss
  * @returns {{ state: object, effects: object[] }}
  */
 export function transition(state, event) {
+  if (event.type === "catalog") {
+    const items = Array.isArray(event.items) && event.items.length > 0 ? event.items : state.items;
+    return next({ ...state, items });
+  }
   switch (state.name) {
     case "browsing":
       return browsing(state, event);
@@ -46,8 +68,8 @@ export function transition(state, event) {
 function browsing(state, event) {
   switch (event.type) {
     case "buy":
-      if (!(event.sku in CATALOGUE)) return stay(state);
-      return next({ name: "waiting_for_tap", gems: state.gems, sku: event.sku });
+      if (!itemFor(state, event.sku)) return stay(state);
+      return next({ name: "waiting_for_tap", gems: state.gems, items: state.items, sku: event.sku });
     case "tap":
       return next({ ...state, note: `Card ${event.uid} tapped. Pick an item first.` });
     default:
@@ -59,11 +81,11 @@ function waitingForTap(state, event) {
   switch (event.type) {
     case "tap":
       return next(
-        { name: "purchasing", gems: state.gems, sku: state.sku, uid: event.uid },
+        { name: "purchasing", gems: state.gems, items: state.items, sku: state.sku, uid: event.uid },
         [{ type: "purchase", uid: event.uid, sku: state.sku }],
       );
     case "dismiss":
-      return next({ name: "browsing", gems: state.gems, note: "Pick an item." });
+      return next({ name: "browsing", gems: state.gems, items: state.items, note: "Pick an item." });
     default:
       return stay(state);
   }
@@ -77,6 +99,7 @@ function purchasing(state, event) {
       return next({
         name: "result",
         gems: state.gems,
+        items: state.items,
         ok: false,
         text: `Could not reach the server: ${event.message}`,
       });
@@ -88,10 +111,11 @@ function purchasing(state, event) {
 function onResponse(state, response) {
   switch (response.status) {
     case "approved": {
-      const granted = CATALOGUE[state.sku];
+      const granted = gemsFor(itemFor(state, state.sku));
       return next({
         name: "result",
         gems: state.gems + granted,
+        items: state.items,
         ok: true,
         text: `Paid. Added ${granted} gems. Receipt ${response.receipt_id}.`,
       });
@@ -100,6 +124,7 @@ function onResponse(state, response) {
       return next({
         name: "result",
         gems: state.gems,
+        items: state.items,
         ok: false,
         text: DECLINE_TEXT[response.reason] ?? `Declined: ${response.reason}.`,
       });
@@ -108,6 +133,7 @@ function onResponse(state, response) {
         {
           name: "awaiting_checkout",
           gems: state.gems,
+          items: state.items,
           sku: state.sku,
           orderId: response.order_id,
           checkoutUrl: response.checkout_url,
@@ -121,6 +147,7 @@ function onResponse(state, response) {
       return next({
         name: "result",
         gems: state.gems,
+        items: state.items,
         ok: false,
         text: "The server sent an unknown answer.",
       });
@@ -133,7 +160,7 @@ function awaitingCheckout(state, event) {
       return onOrderState(state, event.state);
     case "dismiss":
       return next(
-        { name: "result", gems: state.gems, ok: false, text: "Payment was cancelled." },
+        { name: "result", gems: state.gems, items: state.items, ok: false, text: "Payment was cancelled." },
         [{ type: "stop_polling" }, { type: "close_checkout" }],
       );
     case "failure":
@@ -149,11 +176,12 @@ function onOrderState(state, orderState) {
   switch (orderState) {
     case "paid":
     case "done": {
-      const granted = CATALOGUE[state.sku];
+      const granted = gemsFor(itemFor(state, state.sku));
       return next(
         {
           name: "result",
           gems: state.gems + granted,
+          items: state.items,
           ok: true,
           text: `Paid. Added ${granted} gems. Order ${state.orderId}.`,
         },
@@ -162,12 +190,15 @@ function onOrderState(state, orderState) {
     }
     case "canceled":
     case "expired":
-      return next({ name: "result", gems: state.gems, ok: false, text: "Payment was cancelled." }, done);
+      return next(
+        { name: "result", gems: state.gems, items: state.items, ok: false, text: "Payment was cancelled." },
+        done,
+      );
     case "new":
       return stay(state);
     default:
       return next(
-        { name: "result", gems: state.gems, ok: false, text: `Unknown order state: ${orderState}.` },
+        { name: "result", gems: state.gems, items: state.items, ok: false, text: `Unknown order state: ${orderState}.` },
         done,
       );
   }
@@ -175,7 +206,7 @@ function onOrderState(state, orderState) {
 
 function result(state, event) {
   if (event.type === "dismiss") {
-    return next({ name: "browsing", gems: state.gems, note: "Pick an item." });
+    return next({ name: "browsing", gems: state.gems, items: state.items, note: "Pick an item." });
   }
   return stay(state);
 }
