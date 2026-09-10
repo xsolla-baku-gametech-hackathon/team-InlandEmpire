@@ -82,7 +82,7 @@ tells `limit_exceeded` from `unknown_card`.
 Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
 partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
 sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
-tap completes with no click in about 45 seconds. Without the flag a tap creates
+tap completes with no click in about 27 seconds, 4 of them Xsolla. Without the flag a tap creates
 the order and the player confirms with one click on the test card.
 
 The server keeps its state in memory. Order tokens, per-card spend and the
