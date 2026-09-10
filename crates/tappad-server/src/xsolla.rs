@@ -31,21 +31,62 @@ pub struct XsollaConfig {
     pub autopay: bool,
 }
 
+/// Why the Xsolla settings in the environment cannot be used.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    /// A variable the provider cannot work without is missing.
+    #[error("{0} is not set")]
+    Missing(&'static str),
+    /// A boolean variable is neither `true` nor `false`.
+    #[error("{name}={value} is not true or false")]
+    NotABool {
+        /// Which variable.
+        name: &'static str,
+        /// What it was set to.
+        value: String,
+    },
+    /// The project id is not the number from the Publisher Account URL.
+    #[error("XSOLLA_PROJECT_ID={0} is not a number")]
+    ProjectId(String),
+    /// Paying orders automatically outside the sandbox would spend real money.
+    #[error("TAPPAD_AUTOPAY=true only works with XSOLLA_SANDBOX=true")]
+    AutopayOutsideSandbox,
+}
+
+/// Reads a `true`/`false` variable, defaulting when it is unset.
+fn env_bool(name: &'static str, default: bool) -> Result<bool, ConfigError> {
+    match std::env::var(name) {
+        Err(_) => Ok(default),
+        Ok(value) => match value.as_str() {
+            "true" => Ok(true),
+            "false" => Ok(false),
+            _ => Err(ConfigError::NotABool { name, value }),
+        },
+    }
+}
+
 impl XsollaConfig {
     /// Reads `XSOLLA_PROJECT_ID`, `XSOLLA_API_KEY`, `XSOLLA_SANDBOX` and `TAPPAD_AUTOPAY`
     /// from the environment.
     ///
     /// # Errors
-    /// Missing project id or API key, or `TAPPAD_AUTOPAY=true` outside the sandbox.
-    pub fn from_env() -> anyhow::Result<Self> {
-        let project_id = std::env::var("XSOLLA_PROJECT_ID")?;
-        let api_key = SecretString::from(std::env::var("XSOLLA_API_KEY")?);
-        let sandbox = std::env::var("XSOLLA_SANDBOX").map_or(true, |v| v != "false");
-        let autopay = std::env::var("TAPPAD_AUTOPAY").is_ok_and(|v| v == "true");
-        anyhow::ensure!(
-            sandbox || !autopay,
-            "TAPPAD_AUTOPAY=true only works with XSOLLA_SANDBOX=true"
+    /// A missing or malformed variable. `XSOLLA_SANDBOX` and `TAPPAD_AUTOPAY` must be
+    /// spelled `true` or `false`: reading `0` or `no` as "sandbox on" would be a
+    /// pleasant surprise, and reading it as "sandbox off" would spend real money.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let project_id = std::env::var("XSOLLA_PROJECT_ID")
+            .map_err(|_| ConfigError::Missing("XSOLLA_PROJECT_ID"))?;
+        if !project_id.chars().all(|c| c.is_ascii_digit()) || project_id.is_empty() {
+            return Err(ConfigError::ProjectId(project_id));
+        }
+        let api_key = SecretString::from(
+            std::env::var("XSOLLA_API_KEY").map_err(|_| ConfigError::Missing("XSOLLA_API_KEY"))?,
         );
+        let sandbox = env_bool("XSOLLA_SANDBOX", true)?;
+        let autopay = env_bool("TAPPAD_AUTOPAY", false)?;
+        if autopay && !sandbox {
+            return Err(ConfigError::AutopayOutsideSandbox);
+        }
         Ok(Self {
             project_id,
             api_key,
@@ -613,6 +654,17 @@ mod tests {
             }
         }
         format!("Basic {out}")
+    }
+
+    #[test]
+    fn a_sandbox_flag_that_is_not_true_or_false_is_an_error() {
+        // Guards the demo: "0" or "no" must not quietly read as sandbox on, and
+        // must never read as sandbox off, which would charge a real card.
+        let err = ConfigError::NotABool {
+            name: "XSOLLA_SANDBOX",
+            value: "0".into(),
+        };
+        assert_eq!(err.to_string(), "XSOLLA_SANDBOX=0 is not true or false");
     }
 
     #[test]
