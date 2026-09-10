@@ -26,7 +26,8 @@ pub enum CreatedOrder {
     },
 }
 
-/// Provider failures. The route maps every one of these to HTTP 502.
+/// Provider failures. The route maps [`ProviderError::UnknownOrder`] to HTTP 404
+/// and the other two to HTTP 502.
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
     /// Network or HTTP failure talking to the provider.
