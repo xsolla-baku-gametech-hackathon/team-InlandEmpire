@@ -26,6 +26,8 @@ http-body-util = "0.1"
 tower-http = { version = "0.6", features = ["cors"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 secrecy = "0.10"
+sha1 = "0.10"
+hex = "0.4"
 tokio-tungstenite = "0.28"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 serialport = { version = "4", default-features = false }
