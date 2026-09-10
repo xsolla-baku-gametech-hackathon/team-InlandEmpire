@@ -37,6 +37,12 @@ Responses, one of:
 `reason` is one of `unknown_card`, `limit_exceeded`, `insufficient_funds`,
 `unknown_sku`. A decline is HTTP 200. HTTP 502 means the provider failed.
 
+Any non-2xx answer carries one body shape:
+
+```json
+{"error":"provider failed"}
+```
+
 `GET http://127.0.0.1:8080/orders/12345`
 
 ```json
