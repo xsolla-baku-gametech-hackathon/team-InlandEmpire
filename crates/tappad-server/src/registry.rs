@@ -41,7 +41,10 @@ pub struct Cleared {
 }
 
 impl Registry {
-    /// Two cards and three items, matching the demo script and the shop page.
+    /// Demo cards and three items, matching the demo script and the shop page.
+    ///
+    /// Two fake UIDs, used by `tappad-bridge --fake` and the game's dev buttons, and the two
+    /// physical cards read on 2026-09-10 through the real pad on the demo laptop.
     #[must_use]
     pub fn demo() -> Self {
         let card = |owner: &str, limit| Card {
@@ -56,6 +59,8 @@ impl Registry {
             cards: [
                 ("04A3B2C1".parse(), card("Gold", 5_000)),
                 ("04D4E5F6".parse(), card("Starter", 100)),
+                ("C95DD006".parse(), card("Gold", 5_000)),
+                ("D9916906".parse(), card("Starter", 100)),
             ]
             .into_iter()
             .filter_map(|(uid, card)| uid.ok().map(|uid| (uid, card)))
