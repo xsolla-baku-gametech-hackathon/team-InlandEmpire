@@ -1,4 +1,4 @@
-//! Who may tap and what they may buy. Checked before any network call.
+﻿//! Who may tap and what they may buy. Checked before any network call.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
@@ -73,8 +73,12 @@ pub struct Cleared {
 impl Registry {
     /// Demo cards and three items, matching the demo script and the shop page.
     ///
-    /// Two fake UIDs, used by `tappad-bridge --fake` and the game's dev buttons, and the two
-    /// physical cards read on 2026-09-10 through the real pad on the demo laptop.
+    /// Two fake UIDs, used by `tappad-bridge --fake` and the game's dev buttons, and the
+    /// physical objects read on 2026-09-10 through the real pad on the demo laptop. The white
+    /// card with the Xsolla sticker pays for every pack (the dearest is 999 cents). The white
+    /// card with the All The Things sticker is registered with a zero limit, so it is declined
+    /// on stage as `LimitExceeded`. A phone paying with Apple Pay emits a fresh random UID on
+    /// every tap, so it is never in this list and is declined as `UnknownCard`.
     ///
     /// # Errors
     /// A demo UID that does not parse. That is a typo in this file, and it must stop the
@@ -93,8 +97,9 @@ impl Registry {
         for (uid, card) in [
             ("04A3B2C1", card("Gold", "gold-fake", 5_000)),
             ("04D4E5F6", card("Starter", "starter-fake", 100)),
-            ("C95DD006", card("Gold", "gold-1", 5_000)),
-            ("D9916906", card("Starter", "starter-1", 100)),
+            ("8FF14EF1", card("Gold", "gold-1", 5_000)),
+            ("C95DD006", card("Blocked", "blocked-1", 0)),
+            ("D9916906", card("Silver", "silver-1", 1_000)),
         ] {
             cards.insert(uid.parse::<CardUid>()?, card);
         }
@@ -275,7 +280,7 @@ mod tests {
         let registry = Registry::demo()?.with_cap(Cents(600));
         registry.record_spend(&uid("04A3B2C1")?, Cents(499));
         assert!(
-            registry.clear(&uid("C95DD006")?, &sku("gems_500")).is_ok(),
+            registry.clear(&uid("8FF14EF1")?, &sku("gems_500")).is_ok(),
             "another card must be unaffected"
         );
         Ok(())
@@ -300,8 +305,25 @@ mod tests {
     }
 
     #[test]
+    fn the_paying_card_clears_every_item_and_the_blocked_card_none() -> Result<(), UidError> {
+        let registry = Registry::demo()?;
+        for item in ["gems_100", "gems_500", "gems_1200"] {
+            assert!(
+                registry.clear(&uid("8FF14EF1")?, &sku(item)).is_ok(),
+                "the Xsolla card must be approved for {item} on stage"
+            );
+            assert_eq!(
+                registry.clear(&uid("C95DD006")?, &sku(item)).err(),
+                Some(DeclineReason::LimitExceeded),
+                "the All The Things card must be declined for {item} on stage"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn the_demo_registry_keeps_every_card() -> Result<(), UidError> {
-        assert_eq!(Registry::demo()?.card_count(), 4);
+        assert_eq!(Registry::demo()?.card_count(), 5);
         Ok(())
     }
 }

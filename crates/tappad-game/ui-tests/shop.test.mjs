@@ -44,7 +44,7 @@ test("declined keeps gems and shows the reason text, then dismiss returns to bro
   ]);
   assert.equal(declined.state.ok, false);
   assert.equal(declined.state.gems, 0);
-  assert.equal(declined.state.text, "Over this card's spending limit.");
+  assert.equal(declined.state.text, "Card declined.");
   const back = play([{ type: "dismiss" }], declined.state);
   assert.equal(back.state.name, "browsing");
   assert.equal(back.state.gems, 0);

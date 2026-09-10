@@ -64,6 +64,16 @@ cargo test --workspace
 Real: the pad, the card read, order creation in the Xsolla sandbox, the
 sandbox checkout inside the game, order status polling.
 
+Card identity is an allowlist of UIDs in code (`Registry::demo` in
+`crates/tappad-server/src/registry.rs`). The white card with the Xsolla sticker
+is listed and approved for every pack. The white card with the All The Things
+sticker is listed with a zero spending limit, so it is always declined. There
+is no card enrolment and no lookup anywhere. A phone paying with Apple Pay is
+declined because it emits a fresh random UID on every tap, so it can never
+match the list; that is the allowlist doing its job, not a rule about phones.
+The game shows "Card declined." for both kinds of decline; only the server log
+tells `limit_exceeded` from `unknown_card`.
+
 Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
 partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
 sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
