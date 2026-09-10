@@ -3,15 +3,12 @@
 Tap a card on a USB pad, pay inside the game window, get the item.
 Tap-to-pay for desktop games, built on Xsolla.
 
+[![CI](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+<!-- demo gif goes here: ![demo](docs/demo.gif) -->
+
 ![architecture](docs/architecture.png)
-
-## How it works
-
-Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
-over USB. The bridge forwards it to the game. The game asks the server. The
-server checks the card's spending limit and asks Xsolla for an order. The
-Xsolla checkout appears inside the game window. The player confirms. The game
-polls until the order is paid and grants the gems.
 
 ## Run the demo, no hardware, no Xsolla account
 
@@ -47,6 +44,14 @@ pip install playwright && playwright install chromium
 ```
 cargo test --workspace
 ```
+
+## How it works
+
+Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
+over USB. The bridge forwards it to the game. The game asks the server. The
+server checks the card's spending limit and asks Xsolla for an order. The
+Xsolla checkout appears inside the game window. The player confirms. The game
+polls until the order is paid and grants the gems.
 
 ## Layout
 
