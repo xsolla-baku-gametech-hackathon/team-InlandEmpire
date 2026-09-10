@@ -16,7 +16,8 @@ polls until the order is paid and grants the gems.
 ## Run the demo, no hardware, no Xsolla account
 
 ```
-scripts/demo.sh                              # server, fake bridge, then the game if `cargo tauri` exists
+make demo                                    # server, fake bridge, then the game if `cargo tauri` exists
+scripts\demo.ps1                             # same on Windows without make
 ```
 
 Or by hand:
@@ -31,7 +32,7 @@ cargo tauri dev                              # from crates/tappad-game
 
 ```
 cp .env.example .env                         # fill in project id and API key, TAPPAD_PROVIDER=xsolla
-scripts/demo.sh /dev/cu.usbserial-XXXX       # or COM3 on Windows
+make demo PORT=/dev/cu.usbserial-XXXX        # or scripts\demo.ps1 COM3 on Windows
 ```
 
 ## Test
