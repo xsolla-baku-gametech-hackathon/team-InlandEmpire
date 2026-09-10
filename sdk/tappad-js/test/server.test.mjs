@@ -41,3 +41,30 @@ test("a 2xx body that is not a catalogue is a protocol error", async () => {
   const server = createServerClient("http://s", { fetch: fakeFetch(() => ({ body: { nope: 1 } })) });
   await assert.rejects(server.catalog(), (err) => err.kind === "protocol");
 });
+
+test("purchase posts uid and sku as the protocol shows them", async () => {
+  const fetch = fakeFetch(() => ({ body: { status: "approved", order_id: 7, receipt_id: "rcpt-000007" } }));
+  const server = createServerClient("http://s", { fetch });
+  const answer = await server.purchase("04A3B2C1", "gems_500");
+  assert.equal(answer.status, "approved");
+  assert.equal(answer.order_id, 7);
+  const { url, init } = fetch.calls[0];
+  assert.equal(url, "http://s/purchase");
+  assert.equal(init.method, "POST");
+  assert.deepEqual(JSON.parse(init.body), { uid: "04A3B2C1", sku: "gems_500" });
+});
+
+test("a decline is an answer, not a rejection", async () => {
+  const server = createServerClient("http://s", {
+    fetch: fakeFetch(() => ({ body: { status: "declined", reason: "limit_exceeded" } })),
+  });
+  assert.deepEqual(await server.purchase("04A3B2C1", "gems_500"), {
+    status: "declined",
+    reason: "limit_exceeded",
+  });
+});
+
+test("a purchase answer with an unknown status is a protocol error", async () => {
+  const server = createServerClient("http://s", { fetch: fakeFetch(() => ({ body: { status: "maybe" } })) });
+  await assert.rejects(server.purchase("04A3B2C1", "gems_500"), (err) => err.kind === "protocol");
+});

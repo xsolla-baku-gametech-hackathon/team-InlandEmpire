@@ -2,6 +2,8 @@
 
 import { TapPadError } from "./error.js";
 
+const PURCHASE_STATUSES = new Set(["pending_payment", "approved", "declined"]);
+
 /**
  * @param {string} baseUrl  "http://127.0.0.1:8080"
  * @param {{fetch?: typeof fetch}} [deps]  a fetch to use instead of the global one
@@ -45,6 +47,25 @@ export function createServerClient(baseUrl, deps = {}) {
       const items = await call("/catalog");
       if (!Array.isArray(items)) throw new TapPadError("protocol", "catalog is not a list");
       return items;
+    },
+
+    /**
+     * POST /purchase: buy `sku` with the card that was just tapped.
+     * A decline resolves to `{status: "declined", reason}`; it is an answer,
+     * not an error. Resolves to one of the three PurchaseResponse shapes.
+     * @param {string} uid  normalised card uid
+     * @param {string} sku
+     */
+    async purchase(uid, sku) {
+      const answer = await call("/purchase", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ uid, sku }),
+      });
+      if (!answer || !PURCHASE_STATUSES.has(answer.status)) {
+        throw new TapPadError("protocol", `unknown purchase status ${JSON.stringify(answer?.status)}`);
+      }
+      return answer;
     },
   };
 }
