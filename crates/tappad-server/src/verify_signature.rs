@@ -84,19 +84,35 @@ mod tests {
     fn rejects_tampered_body() {
         let header = format!("Signature {}", sign(BODY, &secret()));
         let tampered = br#"{"notification_type":"payment","transaction":{"id":2}}"#;
-        assert_eq!(verify(&header, tampered, &secret()), Err(SignatureError::Mismatch));
+        assert_eq!(
+            verify(&header, tampered, &secret()),
+            Err(SignatureError::Mismatch)
+        );
     }
 
     #[test]
     fn rejects_wrong_secret() {
         let header = format!("Signature {}", sign(BODY, &SecretString::from("other")));
-        assert_eq!(verify(&header, BODY, &secret()), Err(SignatureError::Mismatch));
+        assert_eq!(
+            verify(&header, BODY, &secret()),
+            Err(SignatureError::Mismatch)
+        );
     }
 
     #[test]
     fn rejects_malformed_header() {
-        for h in ["", "Signature", "Signature zz", "Bearer abc", "Signature abc"] {
-            assert_eq!(verify(h, BODY, &secret()), Err(SignatureError::Malformed), "{h:?}");
+        for h in [
+            "",
+            "Signature",
+            "Signature zz",
+            "Bearer abc",
+            "Signature abc",
+        ] {
+            assert_eq!(
+                verify(h, BODY, &secret()),
+                Err(SignatureError::Malformed),
+                "{h:?}"
+            );
         }
     }
 

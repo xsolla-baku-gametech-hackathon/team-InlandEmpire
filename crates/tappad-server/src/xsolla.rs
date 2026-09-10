@@ -234,7 +234,13 @@ async fn autopay(order_id: OrderId, checkout_url: String) {
     if out.status.success() {
         tracing::info!(?order_id, secs, "autopay done: {}", stdout.trim());
     } else {
-        tracing::error!(?order_id, secs, "autopay failed: {} {}", stdout.trim(), stderr.trim());
+        tracing::error!(
+            ?order_id,
+            secs,
+            "autopay failed: {} {}",
+            stdout.trim(),
+            stderr.trim()
+        );
     }
 }
 
