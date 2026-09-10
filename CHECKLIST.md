@@ -47,7 +47,7 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] iframe shows the sandbox checkout inside the game [B]
 - [x] Polling flips to paid, gems granted [B]
 - [ ] Real pad tap starts a real sandbox purchase [A B C H]
-- [ ] Integration test: fake tap to gems, mock provider [C]
+- [x] Integration test: fake tap to gems, mock provider [C]
 
 ## Checkpoint 15:30, tag `v0.2.0-sandbox`
 
@@ -74,5 +74,5 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] 12:00 freeze, tag `v1.0.0`, nobody pushes after this [C]
 - [ ] 13:00 decision: real Xsolla or mock for the demo
 - [ ] 13:30 deck submitted to organisers [P]
-- [ ] Presentation laptop: server, bridge, game start with one script
+- [x] Presentation laptop: server, bridge, game start with one script
 - [ ] Spare pad and spare cards in the bag [H]
