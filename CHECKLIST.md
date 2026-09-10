@@ -14,7 +14,7 @@ this file when it has verified the condition. Owner initials in brackets.
 - [x] Item `gems_500` in the catalogue, price 4.99 USD [A]
 - [x] The `curl` in `docs/xsolla.md` returns a token and an order_id [A]
 - [x] Test bank card numbers copied from Xsolla docs [A]
-- [ ] Arduino IDE flashes the ESP32, PN532 prints a card UID [H]
+- [ ] Arduino IDE flashes the ESP32, RC522 prints a card UID [H]
 - [ ] Two NFC cards, UIDs written down [H]
 - [ ] Skills installed in the repo: `npx skills add apollographql/skills@rust-best-practices` and `npx skills add nodnarbnitram/claude-code-extensions@tauri-v2` [C]
 - [ ] Deck template opened, problem slide drafted [P]
