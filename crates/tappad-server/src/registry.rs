@@ -9,6 +9,9 @@ use crate::types::{CardUid, Cents, DeclineReason, Sku, UidError};
 pub struct Card {
     /// Player name shown in logs and receipts.
     pub owner: String,
+    /// Stable id this card pays under at the provider. Not the name, which is for
+    /// people, and not the UID, which is the tap credential.
+    pub player_id: String,
     /// Most a single tap may spend.
     pub limit: Cents,
 }
@@ -32,8 +35,10 @@ pub struct Registry {
 /// A purchase that passed every registry check.
 #[derive(Debug, Clone)]
 pub struct Cleared {
-    /// Who is paying.
+    /// Who is paying, for logs and receipts.
     pub owner: String,
+    /// The provider-side account this purchase belongs to.
+    pub player_id: String,
     /// What they buy.
     pub sku: Sku,
     /// What it costs.
@@ -50,8 +55,9 @@ impl Registry {
     /// A demo UID that does not parse. That is a typo in this file, and it must stop the
     /// server: a card that silently vanished would show up on stage as "not registered".
     pub fn demo() -> Result<Self, UidError> {
-        let card = |owner: &str, limit| Card {
+        let card = |owner: &str, player_id: &str, limit| Card {
             owner: owner.to_owned(),
+            player_id: player_id.to_owned(),
             limit: Cents(limit),
         };
         let item = |price, gems| Item {
@@ -60,10 +66,10 @@ impl Registry {
         };
         let mut cards = HashMap::new();
         for (uid, card) in [
-            ("04A3B2C1", card("Gold", 5_000)),
-            ("04D4E5F6", card("Starter", 100)),
-            ("C95DD006", card("Gold", 5_000)),
-            ("D9916906", card("Starter", 100)),
+            ("04A3B2C1", card("Gold", "gold-fake", 5_000)),
+            ("04D4E5F6", card("Starter", "starter-fake", 100)),
+            ("C95DD006", card("Gold", "gold-1", 5_000)),
+            ("D9916906", card("Starter", "starter-1", 100)),
         ] {
             cards.insert(uid.parse::<CardUid>()?, card);
         }
@@ -98,6 +104,7 @@ impl Registry {
         }
         Ok(Cleared {
             owner: card.owner.clone(),
+            player_id: card.player_id.clone(),
             sku: sku.clone(),
             price: item.price,
         })

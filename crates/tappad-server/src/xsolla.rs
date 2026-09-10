@@ -169,7 +169,7 @@ pub fn token_request(purchase: &Cleared, sandbox: bool) -> serde_json::Value {
     serde_json::json!({
         "sandbox": sandbox,
         "user": {
-            "id": { "value": purchase.owner.to_lowercase() },
+            "id": { "value": purchase.player_id },
             "country": { "value": "US", "allow_modify": false }
         },
         "purchase": { "items": [ { "sku": purchase.sku.as_str(), "quantity": 1 } ] },
@@ -461,6 +461,7 @@ mod tests {
     fn purchase() -> Cleared {
         Cleared {
             owner: "Gold".into(),
+            player_id: "gold-1".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
         }
@@ -470,7 +471,10 @@ mod tests {
     fn request_body_matches_doc() {
         let body = token_request(&purchase(), true);
         assert_eq!(body["sandbox"], true);
-        assert_eq!(body["user"]["id"]["value"], "gold");
+        assert_eq!(
+            body["user"]["id"]["value"], "gold-1",
+            "the provider account must be the stable id, not the display name"
+        );
         assert_eq!(body["user"]["country"]["value"], "US");
         assert_eq!(body["purchase"]["items"][0]["sku"], "gems_500");
         assert_eq!(body["settings"]["ui"]["layout"], "embed");

@@ -102,6 +102,7 @@ mod tests {
     fn purchase() -> Cleared {
         Cleared {
             owner: "Gold".into(),
+            player_id: "gold-1".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
         }
