@@ -6,7 +6,7 @@ Tap-to-pay for desktop games, built on Xsolla.
 [![CI](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<!-- demo gif goes here: ![demo](docs/demo.gif) -->
+![demo: buy, tap, paid, then a declined card](docs/demo.gif)
 
 ![architecture](docs/architecture.png)
 
