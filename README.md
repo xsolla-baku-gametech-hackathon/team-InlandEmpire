@@ -133,7 +133,13 @@ lounge seats. Launcher integration.
 
 ## Team
 
-Names here.
+| Role | Who |
+|---|---|
+| Server, Xsolla | Riad Mukhtarov |
+| Game, demo laptop | Aykhan Nazaraliyev |
+| Protocol, bridge, CI | |
+| Hardware | |
+| Presenter | |
 
 ## Hackathon
 

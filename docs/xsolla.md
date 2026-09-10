@@ -88,9 +88,9 @@ Pay Station showed "Payment successful", so the status strings above hold.
 
 ## Tokenization
 
-Tap-only completion needs Xsolla Tokenization, a partner feature. Ask a mentor
-at 10:15. Whatever the answer, write it in the README under "What is real and
-what is mocked".
+Tap-only completion needs Xsolla Tokenization, a partner feature we do not
+have. The README says so under "What is real and what is mocked";
+`TAPPAD_AUTOPAY=true` is the stand-in.
 
 ## Webhooks, not today
 
