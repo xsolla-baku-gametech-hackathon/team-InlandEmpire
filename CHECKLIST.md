@@ -7,8 +7,8 @@ this file when it has verified the condition. Owner initials in brackets.
 
 - [ ] Team repo created, `dev` branch exists, this folder is on it [C]
 - [ ] Everyone has `claude` running from the repo root
-- [ ] Rust stable, `cargo tauri --version` prints [AB]
-- [ ] `cargo tauri dev` opens a blank window on the game laptop [AB]
+- [x] Rust stable, `cargo tauri --version` prints [AB]
+- [x] `cargo tauri dev` opens a blank window on the game laptop [AB]
 - [ ] Xsolla Publisher Account, sandbox project, project id noted [AB]
 - [ ] Server API key created in Publisher Account [AB]
 - [ ] Item `gems_500` in the catalogue, price 4.99 USD [AB]
