@@ -768,7 +768,7 @@ mod tests {
     }
 
     #[test]
-    fn eviction_drops_stale_tokens_and_caps_the_map() -> anyhow::Result<()> {
+    fn eviction_drops_stale_tokens_and_caps_the_map() {
         let mut tokens = HashMap::new();
         let base = Instant::now();
         tokens.insert(
@@ -806,7 +806,6 @@ mod tests {
         }
         evict_at(&mut tokens, base + Duration::from_secs(60));
         assert_eq!(tokens.len(), MAX_TOKENS, "the map must stay bounded");
-        Ok(())
     }
 
     #[test]
