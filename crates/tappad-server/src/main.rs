@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use tappad_server::provider::{MockProvider, PaymentProvider};
-use tappad_server::registry::Registry;
+use tappad_server::registry::{Registry, DEFAULT_CARD_CAP};
 use tappad_server::routes::{router, AppState};
+use tappad_server::types::Cents;
 use tappad_server::xsolla::{XsollaConfig, XsollaProvider};
 
 #[tokio::main]
@@ -31,8 +32,19 @@ async fn main() -> anyhow::Result<()> {
     let addr =
         std::env::var("TAPPAD_SERVER_ADDR").unwrap_or_else(|_| tappad_protocol::SERVER_ADDR.into());
 
+    let cap = match std::env::var("TAPPAD_CARD_CAP_CENTS") {
+        Ok(raw) => Cents(
+            raw.parse()
+                .with_context(|| format!("TAPPAD_CARD_CAP_CENTS={raw} is not a whole number"))?,
+        ),
+        Err(_) => DEFAULT_CARD_CAP,
+    };
+    let registry = Registry::demo()
+        .context("a demo card UID does not parse")?
+        .with_cap(cap);
+    tracing::info!(%cap, "per-card spending cap for this run");
     let state = AppState {
-        registry: Arc::new(Registry::demo().context("a demo card UID does not parse")?),
+        registry: Arc::new(registry),
         provider,
     };
     let listener = tokio::net::TcpListener::bind(&addr)

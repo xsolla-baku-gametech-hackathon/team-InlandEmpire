@@ -1,8 +1,26 @@
 //! Who may tap and what they may buy. Checked before any network call.
 
 use std::collections::HashMap;
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
-use crate::types::{CardUid, Cents, DeclineReason, Sku, UidError};
+use crate::types::{CardUid, Cents, DeclineReason, PurchaseResponse, Sku, UidError};
+
+/// Two taps closer together than this on the same card and item are one purchase.
+/// The pad debounces, but a double click on Buy or a retry should not create a
+/// second order, and money is involved.
+const DOUBLE_TAP_WINDOW: Duration = Duration::from_secs(3);
+
+/// Most a single card may spend in one run of the server, unless
+/// `TAPPAD_CARD_CAP_CENTS` says otherwise. The per-tap limit alone lets a card
+/// spend without bound in small steps.
+pub const DEFAULT_CARD_CAP: Cents = Cents(50_000);
+
+/// Takes one of the spend locks, recovering from poisoning: a panic elsewhere
+/// must not turn every later tap into a failure.
+fn lock<T>(what: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    what.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// A registered card and its per-tap limit.
 #[derive(Debug, Clone)]
@@ -25,11 +43,15 @@ pub struct Item {
     pub gems: u32,
 }
 
-/// Cards and catalogue for the demo, fixed in code.
-#[derive(Debug, Clone)]
+/// Cards and catalogue for the demo, fixed in code, plus what has been spent so
+/// far this run. Shared behind an `Arc`, so the spend state lives behind a mutex.
+#[derive(Debug)]
 pub struct Registry {
     cards: HashMap<CardUid, Card>,
     items: HashMap<Sku, Item>,
+    cap: Cents,
+    spent: Mutex<HashMap<CardUid, Cents>>,
+    recent: Mutex<HashMap<(CardUid, Sku), (Instant, PurchaseResponse)>>,
 }
 
 /// A purchase that passed every registry check.
@@ -83,7 +105,17 @@ impl Registry {
             .into_iter()
             .map(|(sku, item)| (Sku::new(sku), item))
             .collect(),
+            cap: DEFAULT_CARD_CAP,
+            spent: Mutex::new(HashMap::new()),
+            recent: Mutex::new(HashMap::new()),
         })
+    }
+
+    /// Sets the per-card spending cap for this run.
+    #[must_use]
+    pub fn with_cap(mut self, cap: Cents) -> Self {
+        self.cap = cap;
+        self
     }
 
     /// How many cards are registered.
@@ -92,7 +124,8 @@ impl Registry {
         self.cards.len()
     }
 
-    /// Applies the business rules.
+    /// Applies the business rules: the card exists, the item exists, the price is
+    /// within the per-tap limit, and the card has not already spent its cap.
     ///
     /// # Errors
     /// `Err` is a decline reason for the player, not a failure.
@@ -102,12 +135,53 @@ impl Registry {
         if item.price > card.limit {
             return Err(DeclineReason::LimitExceeded);
         }
+        let spent = self.spent_by(uid);
+        let after = spent
+            .checked_add(item.price)
+            .ok_or(DeclineReason::LimitExceeded)?;
+        if after > self.cap {
+            tracing::warn!(%spent, price = %item.price, cap = %self.cap, "card is at its cap");
+            return Err(DeclineReason::LimitExceeded);
+        }
         Ok(Cleared {
             owner: card.owner.clone(),
             player_id: card.player_id.clone(),
             sku: sku.clone(),
             price: item.price,
         })
+    }
+
+    /// What this card has spent so far this run.
+    #[must_use]
+    pub fn spent_by(&self, uid: &CardUid) -> Cents {
+        lock(&self.spent).get(uid).copied().unwrap_or(Cents(0))
+    }
+
+    /// Counts a purchase against the card's cap.
+    pub fn record_spend(&self, uid: &CardUid, price: Cents) {
+        let mut spent = lock(&self.spent);
+        let total = spent.entry(uid.clone()).or_insert(Cents(0));
+        *total = total.checked_add(price).unwrap_or(*total);
+    }
+
+    /// The answer already given for this card and item moments ago, if any. Lets a
+    /// double tap return the order that exists instead of creating a second one.
+    #[must_use]
+    pub fn recent_answer(&self, uid: &CardUid, sku: &Sku) -> Option<PurchaseResponse> {
+        let mut recent = lock(&self.recent);
+        let now = Instant::now();
+        recent.retain(|_, (at, _)| now.duration_since(*at) < DOUBLE_TAP_WINDOW);
+        recent
+            .get(&(uid.clone(), sku.clone()))
+            .map(|(_, response)| response.clone())
+    }
+
+    /// Remembers an answer for [`DOUBLE_TAP_WINDOW`].
+    pub fn remember_answer(&self, uid: &CardUid, sku: &Sku, response: &PurchaseResponse) {
+        lock(&self.recent).insert(
+            (uid.clone(), sku.clone()),
+            (Instant::now(), response.clone()),
+        );
     }
 
     /// Gems an item grants, if it exists.
@@ -158,6 +232,54 @@ mod tests {
         assert_eq!(
             registry.clear(&uid("04A3B2C1")?, &sku("sword")).err(),
             Some(DeclineReason::UnknownSku)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_card_cannot_spend_past_its_cap() -> anyhow::Result<()> {
+        // Two 4.99 packs is 9.98, so a 6.00 cap stops the second one even though
+        // each single purchase is inside the 50.00 per-tap limit.
+        let registry = Registry::demo()?.with_cap(Cents(600));
+        let gold = uid("04A3B2C1")?;
+        let first = registry
+            .clear(&gold, &sku("gems_500"))
+            .map_err(|reason| anyhow::anyhow!("first purchase should clear, got {reason:?}"))?;
+        registry.record_spend(&gold, first.price);
+        assert_eq!(registry.spent_by(&gold), Cents(499));
+        assert_eq!(
+            registry.clear(&gold, &sku("gems_500")).err(),
+            Some(DeclineReason::LimitExceeded),
+            "the cap must stop a card spending without bound in small steps"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_cap_is_per_card() -> anyhow::Result<()> {
+        let registry = Registry::demo()?.with_cap(Cents(600));
+        registry.record_spend(&uid("04A3B2C1")?, Cents(499));
+        assert!(
+            registry.clear(&uid("C95DD006")?, &sku("gems_500")).is_ok(),
+            "another card must be unaffected"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_repeat_of_the_same_tap_returns_the_same_answer() -> Result<(), UidError> {
+        let registry = Registry::demo()?;
+        let gold = uid("04A3B2C1")?;
+        let item = sku("gems_500");
+        assert!(registry.recent_answer(&gold, &item).is_none());
+        let answer = PurchaseResponse::Declined {
+            reason: DeclineReason::LimitExceeded,
+        };
+        registry.remember_answer(&gold, &item, &answer);
+        assert_eq!(registry.recent_answer(&gold, &item), Some(answer));
+        assert!(
+            registry.recent_answer(&gold, &sku("gems_100")).is_none(),
+            "a different item is a different purchase"
         );
         Ok(())
     }

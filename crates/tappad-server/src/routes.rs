@@ -120,11 +120,19 @@ async fn purchase(
     body: Result<Json<PurchaseRequest>, JsonRejection>,
 ) -> Result<Json<PurchaseResponse>, ApiError> {
     let Json(req) = body?;
+    if let Some(answer) = state.registry.recent_answer(&req.uid, &req.sku) {
+        tracing::info!(sku = %req.sku, "same card and item again, reusing the last answer");
+        return Ok(Json(answer));
+    }
     let cleared = match state.registry.clear(&req.uid, &req.sku) {
         Ok(cleared) => cleared,
         Err(reason) => {
             tracing::info!(uid = %req.uid, sku = %req.sku, ?reason, "declined");
-            return Ok(Json(PurchaseResponse::Declined { reason }));
+            let declined = PurchaseResponse::Declined { reason };
+            state
+                .registry
+                .remember_answer(&req.uid, &req.sku, &declined);
+            return Ok(Json(declined));
         }
     };
     let response = match state.provider.create_order(&cleared).await? {
@@ -143,6 +151,10 @@ async fn purchase(
             receipt_id,
         },
     };
+    state.registry.record_spend(&req.uid, cleared.price);
+    state
+        .registry
+        .remember_answer(&req.uid, &req.sku, &response);
     Ok(Json(response))
 }
 
@@ -281,6 +293,28 @@ mod tests {
         let items: Vec<CatalogItem> = serde_json::from_slice(&body)?;
         let skus: Vec<&str> = items.iter().map(|i| i.sku.as_str()).collect();
         assert_eq!(skus, ["gems_100", "gems_500", "gems_1200"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_double_tap_does_not_create_a_second_order() -> anyhow::Result<()> {
+        let app = app()?;
+        let body = r#"{"uid":"04A3B2C1","sku":"gems_500"}"#;
+        let (_, first) = post_purchase(app.clone(), body).await?;
+        let (status, second) = post_purchase(app, body).await?;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            first, second,
+            "a second tap within the window must reuse the first answer"
+        );
+        let PurchaseResponse::Approved { order_id, .. } = first else {
+            anyhow::bail!("expected approved, got {first:?}");
+        };
+        assert_eq!(
+            order_id,
+            OrderId(1),
+            "the mock numbers orders from one; a second order would be 2"
+        );
         Ok(())
     }
 
