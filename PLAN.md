@@ -58,8 +58,8 @@ The JSON shape is the whole contract.
 
 ## The demo
 
-1. Dad card taps. Checkout appears in the game. Confirm with the test card. Gems go up.
-2. Kid card taps the same item. "Over this card's spending limit." Xsolla is never called.
+1. Gold card taps. Checkout appears in the game. Confirm with the test card. Gems go up.
+2. Starter card taps the same item. "Over this card's spending limit." Xsolla is never called.
 
 Two taps, one minute. Record it at hour 6 as the backup video.
 
@@ -108,7 +108,7 @@ Checkpoints, each one is a merge to `main` and a tag:
 |---|---|---|
 | 13:00 | fake tap gives gems with the mock provider | `v0.1.0-mock` |
 | 15:30 | real Xsolla sandbox payment goes through the game | `v0.2.0-sandbox` |
-| 18:00 | real pad, Dad pays, Kid declined, backup video recorded | `v0.3.0-demo` |
+| 18:00 | real pad, Gold pays, Starter declined, backup video recorded | `v0.3.0-demo` |
 | Sept 11 12:00 | freeze | `v1.0.0` |
 
 The 13:00 rule: if the real Xsolla payment is not working by 13:00 on Sept 11,

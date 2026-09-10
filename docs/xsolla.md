@@ -14,7 +14,7 @@ Body:
 ```json
 {
   "sandbox": true,
-  "user": { "id": { "value": "dad" }, "country": { "value": "US", "allow_modify": false } },
+  "user": { "id": { "value": "gold" }, "country": { "value": "US", "allow_modify": false } },
   "purchase": { "items": [ { "sku": "gems_500", "quantity": 1 } ] },
   "settings": { "ui": { "layout": "embed", "theme": "63295aab2e47fab76f7708e3" } }
 }
@@ -36,7 +36,7 @@ curl -s -X POST \
   -u "$XSOLLA_PROJECT_ID:$XSOLLA_API_KEY" \
   "https://store.xsolla.com/api/v3/project/$XSOLLA_PROJECT_ID/admin/payment/token" \
   -H 'Content-Type: application/json' \
-  -d '{"sandbox":true,"user":{"id":{"value":"dad"},"country":{"value":"US","allow_modify":false}},"purchase":{"items":[{"sku":"gems_500","quantity":1}]},"settings":{"ui":{"layout":"embed","theme":"63295aab2e47fab76f7708e3"}}}'
+  -d '{"sandbox":true,"user":{"id":{"value":"gold"},"country":{"value":"US","allow_modify":false}},"purchase":{"items":[{"sku":"gems_500","quantity":1}]},"settings":{"ui":{"layout":"embed","theme":"63295aab2e47fab76f7708e3"}}}'
 ```
 
 ## 2. Checkout page
