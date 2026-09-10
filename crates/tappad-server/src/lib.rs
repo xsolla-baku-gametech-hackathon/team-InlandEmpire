@@ -4,4 +4,5 @@ pub mod provider;
 pub mod registry;
 pub mod routes;
 pub mod types;
+pub mod verify_signature;
 pub mod xsolla;
