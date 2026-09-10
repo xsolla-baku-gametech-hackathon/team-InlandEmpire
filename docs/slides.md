@@ -5,7 +5,8 @@ sandbox, project 315338.
 
 ## What is real
 
-- The pad, the card read, the card registry with per-card spending limits.
+- The pad, the card read, the card registry with per-card spending limits and
+  a per-run cap.
 - Order creation through the Xsolla Store API. Every sandbox purchase is a
   real Xsolla order with a real order id, visible in Publisher Account.
 - Pay Station checkout inside the game window.
@@ -36,8 +37,10 @@ Production: 27 s minus the checkout page, about 5 s.
 
 ## Demo plan
 
-Live taps on the mock provider only. Gold card buys 500 gems, Starter card is
-declined over its limit. Instant, works without venue WiFi.
+Live taps on the mock provider only. The card with the Xsolla sticker buys
+500 gems. The All The Things card is refused: it is enrolled with a zero
+spending limit, so the shop says "Card declined." Instant, works without
+venue WiFi.
 
 The Xsolla integration is shown on a slide, not live: a screenshot of a
 sandbox order in Publisher Account next to the timing table above, and the
