@@ -160,7 +160,11 @@ pub fn parse_amount(amount: &str) -> Result<Cents, ProviderError> {
         "" => 0,
         f => format!("{f:0<2}").parse().map_err(|_| bad())?,
     };
-    Ok(Cents(whole * 100 + frac))
+    whole
+        .checked_mul(100)
+        .and_then(|w| w.checked_add(frac))
+        .map(Cents)
+        .ok_or_else(bad)
 }
 
 /// Maps the store's item list onto what the shop page renders. Items without a
@@ -362,6 +366,14 @@ mod tests {
         assert!(parse_amount("abc").is_err());
         assert!(parse_amount(".5").is_err());
         Ok(())
+    }
+
+    #[test]
+    fn an_amount_too_large_for_cents_is_rejected_not_wrapped() {
+        // u64::MAX is 18446744073709551615, so the cents of these do not fit.
+        assert!(parse_amount("184467440737095516.16").is_err());
+        assert!(parse_amount("18446744073709551615").is_err());
+        assert!(parse_amount("99999999999999999999999").is_err());
     }
 
     #[test]
