@@ -54,11 +54,11 @@ impl Registry {
         };
         Self {
             cards: [
-                (CardUid::parse("04A3B2C1"), card("Dad", 5_000)),
-                (CardUid::parse("04D4E5F6"), card("Kid", 100)),
+                ("04A3B2C1".parse(), card("Dad", 5_000)),
+                ("04D4E5F6".parse(), card("Kid", 100)),
             ]
             .into_iter()
-            .filter_map(|(uid, card)| uid.map(|uid| (uid, card)))
+            .filter_map(|(uid, card)| uid.ok().map(|uid| (uid, card)))
             .collect(),
             items: [
                 ("gems_100", item(99, 100)),
@@ -66,7 +66,7 @@ impl Registry {
                 ("gems_1200", item(999, 1200)),
             ]
             .into_iter()
-            .map(|(sku, item)| (Sku(sku.to_owned()), item))
+            .map(|(sku, item)| (Sku::new(sku), item))
             .collect(),
         }
     }
@@ -75,9 +75,8 @@ impl Registry {
     ///
     /// # Errors
     /// `Err` is a decline reason for the player, not a failure.
-    pub fn clear(&self, raw_uid: &str, sku: &Sku) -> Result<Cleared, DeclineReason> {
-        let uid = CardUid::parse(raw_uid).ok_or(DeclineReason::UnknownCard)?;
-        let card = self.cards.get(&uid).ok_or(DeclineReason::UnknownCard)?;
+    pub fn clear(&self, uid: &CardUid, sku: &Sku) -> Result<Cleared, DeclineReason> {
+        let card = self.cards.get(uid).ok_or(DeclineReason::UnknownCard)?;
         let item = self.items.get(sku).ok_or(DeclineReason::UnknownSku)?;
         if item.price > card.limit {
             return Err(DeclineReason::LimitExceeded);
@@ -99,14 +98,19 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::UidError;
 
     fn sku(s: &str) -> Sku {
-        Sku(s.to_owned())
+        Sku::new(s)
+    }
+
+    fn uid(s: &str) -> Result<CardUid, UidError> {
+        s.parse()
     }
 
     #[test]
-    fn dad_within_limit_is_cleared() {
-        let cleared = Registry::demo().clear("04a3b2c1", &sku("gems_500"));
+    fn dad_within_limit_is_cleared() -> Result<(), UidError> {
+        let cleared = Registry::demo().clear(&uid("04a3b2c1")?, &sku("gems_500"));
         assert!(matches!(
             cleared,
             Ok(Cleared {
@@ -114,24 +118,27 @@ mod tests {
                 ..
             })
         ));
+        Ok(())
     }
 
     #[test]
-    fn kid_over_limit_is_declined_without_error() {
-        let result = Registry::demo().clear("04D4E5F6", &sku("gems_500"));
+    fn kid_over_limit_is_declined_without_error() -> Result<(), UidError> {
+        let result = Registry::demo().clear(&uid("04D4E5F6")?, &sku("gems_500"));
         assert_eq!(result.err(), Some(DeclineReason::LimitExceeded));
+        Ok(())
     }
 
     #[test]
-    fn unknown_card_and_sku() {
+    fn unknown_card_and_sku() -> Result<(), UidError> {
         let registry = Registry::demo();
         assert_eq!(
-            registry.clear("FFFFFFFF", &sku("gems_100")).err(),
+            registry.clear(&uid("FFFFFFFF")?, &sku("gems_100")).err(),
             Some(DeclineReason::UnknownCard)
         );
         assert_eq!(
-            registry.clear("04A3B2C1", &sku("sword")).err(),
+            registry.clear(&uid("04A3B2C1")?, &sku("sword")).err(),
             Some(DeclineReason::UnknownSku)
         );
+        Ok(())
     }
 }

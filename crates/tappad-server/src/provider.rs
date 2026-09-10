@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use async_trait::async_trait;
 
 use crate::registry::Cleared;
-use crate::types::{OrderId, OrderState};
+use crate::types::{OrderId, OrderState, ReceiptId};
 
 /// What a provider did with a cleared purchase.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +22,7 @@ pub enum CreatedOrder {
         /// Provider order id.
         order_id: OrderId,
         /// Receipt reference.
-        receipt_id: String,
+        receipt_id: ReceiptId,
     },
 }
 
@@ -60,10 +60,10 @@ pub struct MockProvider {
 impl PaymentProvider for MockProvider {
     async fn create_order(&self, purchase: &Cleared) -> Result<CreatedOrder, ProviderError> {
         let order_id = OrderId(self.next_order.fetch_add(1, Ordering::Relaxed) + 1);
-        tracing::info!(owner = %purchase.owner, sku = %purchase.sku.0, price = %purchase.price, ?order_id, "mock approved");
+        tracing::info!(owner = %purchase.owner, sku = %purchase.sku, price = %purchase.price, ?order_id, "mock approved");
         Ok(CreatedOrder::Approved {
             order_id,
-            receipt_id: format!("rcpt-{:06}", order_id.0),
+            receipt_id: ReceiptId::new(format!("rcpt-{:06}", order_id.0)),
         })
     }
 
@@ -83,7 +83,7 @@ mod tests {
     fn purchase() -> Cleared {
         Cleared {
             owner: "Dad".into(),
-            sku: Sku("gems_500".into()),
+            sku: Sku::new("gems_500"),
             price: Cents(499),
         }
     }

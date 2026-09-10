@@ -3461,6 +3461,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "tappad-protocol",
  "thiserror 1.0.69",
  "tokio",
  "tower",

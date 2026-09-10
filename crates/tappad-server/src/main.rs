@@ -26,7 +26,8 @@ async fn main() -> anyhow::Result<()> {
         )?)),
         other => anyhow::bail!("TAPPAD_PROVIDER={other} is not one of: mock, xsolla"),
     };
-    let addr = std::env::var("TAPPAD_SERVER_ADDR").unwrap_or_else(|_| "127.0.0.1:8080".into());
+    let addr =
+        std::env::var("TAPPAD_SERVER_ADDR").unwrap_or_else(|_| tappad_protocol::SERVER_ADDR.into());
 
     let state = AppState {
         registry: Arc::new(Registry::demo()),

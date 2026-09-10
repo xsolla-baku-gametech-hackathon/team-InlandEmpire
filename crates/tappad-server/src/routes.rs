@@ -53,7 +53,7 @@ async fn purchase(
     let cleared = match state.registry.clear(&req.uid, &req.sku) {
         Ok(cleared) => cleared,
         Err(reason) => {
-            tracing::info!(uid = %req.uid, sku = %req.sku.0, ?reason, "declined");
+            tracing::info!(uid = %req.uid, sku = %req.sku, ?reason, "declined");
             return Ok(Json(PurchaseResponse::Declined { reason }));
         }
     };
