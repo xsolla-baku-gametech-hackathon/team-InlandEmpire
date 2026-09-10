@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::routing::{get, post};
@@ -10,7 +11,9 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::provider::{CreatedOrder, PaymentProvider, ProviderError};
 use crate::registry::Registry;
-use crate::types::{CatalogItem, OrderId, OrderStatus, PurchaseRequest, PurchaseResponse};
+use crate::types::{
+    CatalogItem, ErrorBody, OrderId, OrderStatus, PurchaseRequest, PurchaseResponse,
+};
 
 /// Everything a handler needs.
 #[derive(Clone)]
@@ -46,37 +49,77 @@ pub fn router(state: AppState) -> Router {
         .route("/catalog", get(catalog))
         .route("/purchase", post(purchase))
         .route("/orders/{id}", get(order))
+        .fallback(not_found)
         .layer(cors)
         .with_state(state)
 }
 
-/// Provider failure as an HTTP answer.
-struct Upstream(ProviderError);
+/// Anything that is not a 2xx. Always serialises as [`ErrorBody`], because that is
+/// what `docs/protocol.md` promises for every non-2xx answer.
+struct ApiError {
+    status: StatusCode,
+    /// Text the client may see. Never carries upstream detail; that goes to the log.
+    message: &'static str,
+}
 
-impl axum::response::IntoResponse for Upstream {
+impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        let status = match self.0 {
-            ProviderError::UnknownOrder(_) => StatusCode::NOT_FOUND,
-            ProviderError::Transport(_) | ProviderError::Rejected(_) => StatusCode::BAD_GATEWAY,
-        };
-        tracing::warn!(error = %self.0, "provider call failed");
         (
-            status,
-            Json(serde_json::json!({ "error": self.0.to_string() })),
+            self.status,
+            Json(ErrorBody {
+                error: self.message.to_owned(),
+            }),
         )
             .into_response()
     }
 }
 
-async fn catalog(State(state): State<AppState>) -> Result<Json<Vec<CatalogItem>>, Upstream> {
-    let items = state.provider.catalog().await.map_err(Upstream)?;
+impl From<ProviderError> for ApiError {
+    /// Logs the provider's own words and gives the client a fixed sentence, so a
+    /// URL with the project id in it or an upstream body never reaches the page.
+    fn from(err: ProviderError) -> Self {
+        tracing::warn!(error = %err, "provider call failed");
+        match err {
+            ProviderError::UnknownOrder(_) => Self {
+                status: StatusCode::NOT_FOUND,
+                message: "unknown order",
+            },
+            ProviderError::Transport(_) | ProviderError::Rejected(_) => Self {
+                status: StatusCode::BAD_GATEWAY,
+                message: "payment provider unavailable",
+            },
+        }
+    }
+}
+
+impl From<JsonRejection> for ApiError {
+    fn from(err: JsonRejection) -> Self {
+        tracing::debug!(error = %err, "bad request body");
+        Self {
+            status: err.status(),
+            message: "request body is not a valid purchase",
+        }
+    }
+}
+
+/// Answer for a path this server does not serve.
+async fn not_found() -> ApiError {
+    ApiError {
+        status: StatusCode::NOT_FOUND,
+        message: "no such route",
+    }
+}
+
+async fn catalog(State(state): State<AppState>) -> Result<Json<Vec<CatalogItem>>, ApiError> {
+    let items = state.provider.catalog().await?;
     Ok(Json(items))
 }
 
 async fn purchase(
     State(state): State<AppState>,
-    Json(req): Json<PurchaseRequest>,
-) -> Result<Json<PurchaseResponse>, Upstream> {
+    body: Result<Json<PurchaseRequest>, JsonRejection>,
+) -> Result<Json<PurchaseResponse>, ApiError> {
+    let Json(req) = body?;
     let cleared = match state.registry.clear(&req.uid, &req.sku) {
         Ok(cleared) => cleared,
         Err(reason) => {
@@ -84,12 +127,7 @@ async fn purchase(
             return Ok(Json(PurchaseResponse::Declined { reason }));
         }
     };
-    let response = match state
-        .provider
-        .create_order(&cleared)
-        .await
-        .map_err(Upstream)?
-    {
+    let response = match state.provider.create_order(&cleared).await? {
         CreatedOrder::Pending {
             order_id,
             checkout_url,
@@ -111,14 +149,13 @@ async fn purchase(
 async fn order(
     State(state): State<AppState>,
     Path(id): Path<u64>,
-) -> Result<Json<OrderStatus>, Upstream> {
+) -> Result<Json<OrderStatus>, ApiError> {
     let order_id = OrderId(id);
-    let state = state
-        .provider
-        .order_state(order_id)
-        .await
-        .map_err(Upstream)?;
-    Ok(Json(OrderStatus { order_id, state }))
+    let order_state = state.provider.order_state(order_id).await?;
+    Ok(Json(OrderStatus {
+        order_id,
+        state: order_state,
+    }))
 }
 
 #[cfg(test)]
@@ -247,11 +284,50 @@ mod tests {
         Ok(())
     }
 
+    /// Reads the body of a non-2xx answer as the `ErrorBody` the protocol promises.
+    async fn error_body(res: axum::response::Response) -> anyhow::Result<ErrorBody> {
+        let bytes = res.into_body().collect().await?.to_bytes();
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+
+    #[tokio::test]
+    async fn a_body_that_is_not_a_purchase_is_an_error_body() -> anyhow::Result<()> {
+        let req = Request::post("/purchase")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from("not json"))?;
+        let res = app()?.oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let body = error_body(res).await?;
+        assert_eq!(body.error, "request body is not a valid purchase");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_purchase_missing_a_field_is_an_error_body() -> anyhow::Result<()> {
+        let req = Request::post("/purchase")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(r#"{"uid":"04A3B2C1"}"#))?;
+        let res = app()?.oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(!error_body(res).await?.error.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_unknown_route_is_an_error_body() -> anyhow::Result<()> {
+        let req = Request::get("/nope").body(Body::empty())?;
+        let res = app()?.oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        assert_eq!(error_body(res).await?.error, "no such route");
+        Ok(())
+    }
+
     #[tokio::test]
     async fn unknown_order_is_404() -> anyhow::Result<()> {
         let req = Request::get("/orders/999").body(Body::empty())?;
         let res = app()?.oneshot(req).await?;
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        assert_eq!(error_body(res).await?.error, "unknown order");
         Ok(())
     }
 }
