@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::provider::{CreatedOrder, PaymentProvider, ProviderError};
 use crate::registry::Cleared;
-use crate::types::{OrderId, OrderState};
+use crate::types::{CatalogItem, Cents, OrderId, OrderState, Sku};
 
 /// Pay Station theme id for the embedded layout, from the Xsolla docs.
 const EMBED_THEME: &str = "63295aab2e47fab76f7708e3";
@@ -119,6 +119,73 @@ struct TokenResponse {
 #[derive(Debug, Deserialize)]
 struct OrderResponse {
     status: String,
+}
+
+/// Answer to the public catalogue call. Only the fields the shop shows.
+#[derive(Debug, Deserialize)]
+struct ItemsResponse {
+    items: Vec<StoreItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StoreItem {
+    sku: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+    image_url: Option<String>,
+    price: Option<StorePrice>,
+    #[serde(default)]
+    can_be_bought: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct StorePrice {
+    amount: String,
+    currency: String,
+}
+
+/// `"4.99"` to 499 cents. Xsolla sends amounts as decimal strings.
+///
+/// # Errors
+/// Anything that is not digits with at most one dot and two decimals.
+pub fn parse_amount(amount: &str) -> Result<Cents, ProviderError> {
+    let bad = || ProviderError::Rejected(format!("bad amount {amount:?}"));
+    let (whole, frac) = amount.split_once('.').unwrap_or((amount, ""));
+    if frac.len() > 2 || whole.is_empty() {
+        return Err(bad());
+    }
+    let whole: u64 = whole.parse().map_err(|_| bad())?;
+    let frac: u64 = match frac {
+        "" => 0,
+        f => format!("{f:0<2}").parse().map_err(|_| bad())?,
+    };
+    Ok(Cents(whole * 100 + frac))
+}
+
+/// Maps the store's item list onto what the shop page renders. Items without a
+/// price or not buyable are skipped.
+///
+/// # Errors
+/// A price that does not parse.
+pub fn parse_catalog(body: &str) -> Result<Vec<CatalogItem>, ProviderError> {
+    let res: ItemsResponse = serde_json::from_str(body)
+        .map_err(|e| ProviderError::Rejected(format!("bad items response: {e}")))?;
+    res.items
+        .into_iter()
+        .filter(|i| i.can_be_bought)
+        .filter_map(|mut i| i.price.take().map(|p| (i, p)))
+        .map(|(i, p)| {
+            Ok(CatalogItem {
+                sku: Sku::new(&i.sku),
+                name: i.name,
+                description: i.description,
+                price: parse_amount(&p.amount)?,
+                currency: p.currency,
+                image_url: i.image_url,
+            })
+        })
+        .collect()
 }
 
 /// Maps Xsolla's status string onto [`OrderState`].
@@ -240,6 +307,27 @@ impl PaymentProvider for XsollaProvider {
             .map_err(|e| ProviderError::Rejected(format!("bad order response: {e}")))?;
         parse_order_state(&order.status)
     }
+
+    async fn catalog(&self) -> Result<Vec<CatalogItem>, ProviderError> {
+        let url = format!(
+            "{}/api/v2/project/{}/items/virtual_items",
+            self.config.store_url, self.config.project_id
+        );
+        let res = self
+            .http
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ProviderError::Transport(e.to_string()))?;
+        if !res.status().is_success() {
+            return Err(failure(res).await);
+        }
+        let body = res
+            .text()
+            .await
+            .map_err(|e| ProviderError::Transport(e.to_string()))?;
+        parse_catalog(&body)
+    }
 }
 
 #[cfg(test)]
@@ -248,7 +336,40 @@ mod tests {
     use axum::{Json, Router};
 
     use super::*;
-    use crate::types::{Cents, Sku};
+
+    const ITEMS_BODY: &str = r#"{"has_more":false,"items":[
+      {"sku":"gems_100","name":"100 gems","description":"100 gems","image_url":null,
+       "price":{"amount":"0.99","amount_without_discount":"0.99","currency":"USD"},"can_be_bought":true},
+      {"sku":"gems_500","name":"500 gems","description":"500 gems","image_url":"https://cdn/x.png",
+       "price":{"amount":"4.99","currency":"USD"},"can_be_bought":true},
+      {"sku":"hidden","name":"Hidden","price":{"amount":"1.00","currency":"USD"},"can_be_bought":false},
+      {"sku":"free","name":"Free","price":null,"can_be_bought":true}
+    ]}"#;
+
+    #[test]
+    fn amounts_become_cents() -> Result<(), ProviderError> {
+        assert_eq!(parse_amount("0.99")?, Cents(99));
+        assert_eq!(parse_amount("4.99")?, Cents(499));
+        assert_eq!(parse_amount("12")?, Cents(1200));
+        assert_eq!(parse_amount("12.5")?, Cents(1250));
+        assert!(parse_amount("1.999").is_err());
+        assert!(parse_amount("abc").is_err());
+        assert!(parse_amount(".5").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn catalog_keeps_only_buyable_priced_items() -> Result<(), ProviderError> {
+        let items = parse_catalog(ITEMS_BODY)?;
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].sku.as_str(), "gems_100");
+        assert_eq!(items[0].price, Cents(99));
+        assert_eq!(items[0].currency, "USD");
+        assert_eq!(items[0].image_url, None);
+        assert_eq!(items[1].image_url.as_deref(), Some("https://cdn/x.png"));
+        assert_eq!(items[1].price, Cents(499));
+        Ok(())
+    }
 
     fn purchase() -> Cleared {
         Cleared {

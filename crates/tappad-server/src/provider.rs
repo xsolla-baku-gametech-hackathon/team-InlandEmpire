@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use async_trait::async_trait;
 
 use crate::registry::Cleared;
-use crate::types::{OrderId, OrderState, ReceiptId};
+use crate::types::{CatalogItem, Cents, OrderId, OrderState, ReceiptId, Sku};
 
 /// What a provider did with a cleared purchase.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +48,9 @@ pub trait PaymentProvider: Send + Sync {
 
     /// Current state of an order this provider created.
     async fn order_state(&self, order_id: OrderId) -> Result<OrderState, ProviderError>;
+
+    /// What the shop page can sell, in store order.
+    async fn catalog(&self) -> Result<Vec<CatalogItem>, ProviderError>;
 }
 
 /// Approves everything instantly. Used when `TAPPAD_PROVIDER=mock` and in tests.
@@ -72,6 +75,22 @@ impl PaymentProvider for MockProvider {
             return Err(ProviderError::UnknownOrder(order_id));
         }
         Ok(OrderState::Done)
+    }
+
+    async fn catalog(&self) -> Result<Vec<CatalogItem>, ProviderError> {
+        let item = |sku: &str, name: &str, price| CatalogItem {
+            sku: Sku::new(sku),
+            name: name.to_owned(),
+            description: name.to_owned(),
+            price: Cents(price),
+            currency: "USD".into(),
+            image_url: None,
+        };
+        Ok(vec![
+            item("gems_100", "100 gems", 99),
+            item("gems_500", "500 gems", 499),
+            item("gems_1200", "1200 gems", 999),
+        ])
     }
 }
 
