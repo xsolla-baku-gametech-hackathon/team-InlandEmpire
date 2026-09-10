@@ -1,7 +1,8 @@
 # Messages
 
 Every message is one JSON object. Types live in `crates/tappad-protocol`. The
-firmware writes the same shapes by hand.
+firmware writes the same shapes by hand. A game that would rather not handle
+these shapes itself can use one of the SDKs in `docs/sdk.md`.
 
 ## Pad to bridge, one line per message over USB serial, 115200 baud
 
