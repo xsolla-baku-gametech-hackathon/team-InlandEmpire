@@ -1,0 +1,82 @@
+:root {
+  --bg: #1c1f2b;
+  --panel: #262a3a;
+  --text: #f4f4f6;
+  --muted: #9aa0b4;
+  --gold: #f2c94c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 40px;
+}
+
+h1 { margin: 0; font-size: 28px; }
+
+.gems {
+  font-size: 22px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--panel);
+}
+
+.gem-icon { color: var(--gold); margin-right: 6px; }
+
+#shop {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  padding: 0 40px;
+  align-content: center;
+}
+
+.item {
+  background: var(--panel);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.item h2 { margin: 0 0 8px; font-size: 22px; }
+.amount { margin: 0; color: var(--muted); }
+.price { margin: 16px 0 20px; font-size: 26px; font-weight: 700; color: var(--gold); }
+
+.buy {
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--gold);
+  color: #1c1f2b;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.buy:hover { filter: brightness(1.08); }
+.buy:disabled { opacity: 0.5; cursor: default; }
+
+footer {
+  padding: 20px 40px 28px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+#status[data-state="waiting_for_tap"] { color: var(--gold); }

@@ -3,6 +3,42 @@
 <head>
   <meta charset="utf-8">
   <title>TapPad</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body></body>
+<body>
+  <header>
+    <h1>Gem Shop</h1>
+    <div class="gems" aria-live="polite">
+      <span class="gem-icon" aria-hidden="true">◆</span>
+      <span id="gem-count">0</span> gems
+    </div>
+  </header>
+
+  <main id="shop">
+    <article class="item" data-sku="gems_100" data-gems="100">
+      <h2>Handful</h2>
+      <p class="amount">100 gems</p>
+      <p class="price">$0.99</p>
+      <button type="button" class="buy">Buy</button>
+    </article>
+    <article class="item" data-sku="gems_500" data-gems="500">
+      <h2>Pouch</h2>
+      <p class="amount">500 gems</p>
+      <p class="price">$4.99</p>
+      <button type="button" class="buy">Buy</button>
+    </article>
+    <article class="item" data-sku="gems_1200" data-gems="1200">
+      <h2>Chest</h2>
+      <p class="amount">1200 gems</p>
+      <p class="price">$9.99</p>
+      <button type="button" class="buy">Buy</button>
+    </article>
+  </main>
+
+  <footer>
+    <p id="status" data-state="browsing">Pick an item.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
 </html>
