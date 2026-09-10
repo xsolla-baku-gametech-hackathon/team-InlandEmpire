@@ -1,7 +1,7 @@
 //! HTTP client for `tappad-server`. Three routes, shapes in `docs/protocol.md`.
 
 use serde::de::DeserializeOwned;
-use tappad_protocol::{CatalogItem, ErrorBody};
+use tappad_protocol::{CardUid, CatalogItem, ErrorBody, PurchaseRequest, PurchaseResponse, Sku};
 
 use crate::{Config, SdkError};
 
@@ -34,6 +34,24 @@ impl ServerClient {
     /// non-2xx answer, [`SdkError::Protocol`] on a body that is not a catalogue.
     pub async fn catalog(&self) -> Result<Vec<CatalogItem>, SdkError> {
         let res = self.http.get(format!("{}/catalog", self.base)).send().await;
+        read(res).await
+    }
+
+    /// `POST /purchase`: buy `sku` with the card that was just tapped.
+    ///
+    /// A decline comes back as `Ok(PurchaseResponse::Declined { .. })`, not as an
+    /// error: the server said no, it did not fail.
+    ///
+    /// # Errors
+    /// [`SdkError::Server`] with status 502 when the payment provider failed;
+    /// otherwise as for [`ServerClient::catalog`].
+    pub async fn purchase(&self, uid: CardUid, sku: Sku) -> Result<PurchaseResponse, SdkError> {
+        let res = self
+            .http
+            .post(format!("{}/purchase", self.base))
+            .json(&PurchaseRequest { uid, sku })
+            .send()
+            .await;
         read(res).await
     }
 }
@@ -93,6 +111,34 @@ mod tests {
         let client = ServerClient::new(&demo_server().await?)?;
         let items = client.catalog().await?;
         assert!(items.iter().any(|i| i.sku.as_str() == "gems_500"));
+        Ok(())
+    }
+
+    fn gold() -> anyhow::Result<CardUid> {
+        Ok("04A3B2C1".parse()?)
+    }
+
+    #[tokio::test]
+    async fn gold_buying_gems_is_approved() -> anyhow::Result<()> {
+        let client = ServerClient::new(&demo_server().await?)?;
+        let answer = client.purchase(gold()?, Sku::new("gems_500")).await?;
+        assert!(
+            matches!(answer, PurchaseResponse::Approved { .. }),
+            "{answer:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_decline_is_an_answer_not_an_error() -> anyhow::Result<()> {
+        let client = ServerClient::new(&demo_server().await?)?;
+        let answer = client.purchase(gold()?, Sku::new("not_a_sku")).await?;
+        assert_eq!(
+            answer,
+            PurchaseResponse::Declined {
+                reason: tappad_protocol::DeclineReason::UnknownSku
+            }
+        );
         Ok(())
     }
 
