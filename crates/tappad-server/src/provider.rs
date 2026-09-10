@@ -26,7 +26,8 @@ pub enum CreatedOrder {
     },
 }
 
-/// Provider failures. The route maps every one of these to HTTP 502.
+/// Provider failures. The route maps [`ProviderError::UnknownOrder`] to HTTP 404
+/// and the other two to HTTP 502.
 #[derive(Debug, thiserror::Error)]
 pub enum ProviderError {
     /// Network or HTTP failure talking to the provider.
@@ -102,8 +103,10 @@ mod tests {
     fn purchase() -> Cleared {
         Cleared {
             owner: "Gold".into(),
+            player_id: "gold-1".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
+            limit: Cents(5_000),
         }
     }
 

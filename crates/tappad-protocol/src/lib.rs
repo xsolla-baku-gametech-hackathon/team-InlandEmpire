@@ -244,7 +244,8 @@ pub enum DeclineReason {
     UnknownCard,
     /// The item costs more than this card may spend.
     LimitExceeded,
-    /// The card's balance does not cover the item.
+    /// The card's balance does not cover the item. Reserved: the registry checks a
+    /// spending limit, not a balance, so nothing produces this today.
     InsufficientFunds,
     /// The item is not in the catalogue.
     UnknownSku,
@@ -330,9 +331,15 @@ pub enum OrderState {
 
 impl OrderState {
     /// True when the state will not change again, so the game can stop polling.
+    ///
+    /// Every final state is named here rather than "anything but `New`", so a state
+    /// added later is not silently treated as final before anyone has decided.
     #[must_use]
     pub fn is_final(self) -> bool {
-        !matches!(self, OrderState::New)
+        matches!(
+            self,
+            OrderState::Paid | OrderState::Done | OrderState::Canceled | OrderState::Expired
+        )
     }
 
     /// True when the player should get the item.

@@ -26,8 +26,8 @@ export const POLL_MS = 800;
 
 /** Player-facing text per decline reason from docs/protocol.md. */
 export const DECLINE_TEXT = Object.freeze({
-  unknown_card: "This card is not registered.",
-  limit_exceeded: "Over this card's spending limit.",
+  unknown_card: "Card declined.",
+  limit_exceeded: "Card declined.",
   insufficient_funds: "The payment was refused.",
   unknown_sku: "That item is not for sale.",
 });
