@@ -325,26 +325,57 @@ pub fn parse_order_state(status: &str) -> Result<OrderState, ProviderError> {
     }
 }
 
+/// How long one headless checkout may take before it is given up on. The script
+/// drives a real browser through a payment form; 45 seconds is normal.
+const AUTOPAY_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// How many headless browsers may run at once. Each one is a Chromium; a queue of
+/// taps must not turn into a queue of browsers.
+static AUTOPAY_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+/// Exit code Windows gives for the Microsoft Store `python3` alias, which spawns
+/// happily and then does nothing. Any other failure is the script's own.
+const WINDOWS_STORE_ALIAS: Option<i32> = Some(9009);
+
 /// Pays a sandbox order headless with `scripts/autopay.py`, relative to the working
-/// directory. Tries `python3` then `python` so the same command works on Windows.
+/// directory. Tries `python3` then `python` so the same command works on Windows,
+/// moving on only when the interpreter itself did not run.
 async fn autopay(order_id: OrderId, checkout_url: String) {
+    let Ok(_slot) = AUTOPAY_SLOTS.acquire().await else {
+        tracing::error!(?order_id, "autopay queue closed");
+        return;
+    };
     let started = std::time::Instant::now();
-    let mut output = None;
+    let mut ran = None;
     for python in ["python3", "python"] {
-        match tokio::process::Command::new(python)
+        let call = tokio::process::Command::new(python)
             .arg("scripts/autopay.py")
             .arg(&checkout_url)
-            .output()
-            .await
-        {
-            Ok(out) => {
-                output = Some(out);
+            .output();
+        match tokio::time::timeout(AUTOPAY_TIMEOUT, call).await {
+            Err(_) => {
+                tracing::error!(
+                    ?order_id,
+                    python,
+                    "autopay timed out after {AUTOPAY_TIMEOUT:?}"
+                );
+                return;
+            }
+            Ok(Err(e)) => tracing::debug!(?order_id, python, "autopay spawn failed: {e}"),
+            Ok(Ok(out)) if out.status.code() == WINDOWS_STORE_ALIAS => {
+                tracing::debug!(
+                    ?order_id,
+                    python,
+                    "this is the Windows Store alias, trying the next"
+                );
+            }
+            Ok(Ok(out)) => {
+                ran = Some((python, out));
                 break;
             }
-            Err(e) => tracing::debug!(?order_id, python, "autopay spawn failed: {e}"),
         }
     }
-    let Some(out) = output else {
+    let Some((python, out)) = ran else {
         tracing::error!(?order_id, "autopay needs python3 or python on PATH");
         return;
     };
@@ -352,10 +383,11 @@ async fn autopay(order_id: OrderId, checkout_url: String) {
     let stderr = String::from_utf8_lossy(&out.stderr);
     let secs = started.elapsed().as_secs();
     if out.status.success() {
-        tracing::info!(?order_id, secs, "autopay done: {}", stdout.trim());
+        tracing::info!(?order_id, python, secs, "autopay done: {}", stdout.trim());
     } else {
         tracing::error!(
             ?order_id,
+            python,
             secs,
             "autopay failed: {} {}",
             stdout.trim(),
