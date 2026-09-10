@@ -3,15 +3,12 @@
 Tap a card on a USB pad, pay inside the game window, get the item.
 Tap-to-pay for desktop games, built on Xsolla.
 
+[![CI](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+<!-- demo gif goes here: ![demo](docs/demo.gif) -->
+
 ![architecture](docs/architecture.png)
-
-## How it works
-
-Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
-over USB. The bridge forwards it to the game. The game asks the server. The
-server checks the card's spending limit and asks Xsolla for an order. The
-Xsolla checkout appears inside the game window. The player confirms. The game
-polls until the order is paid and grants the gems.
 
 ## Run the demo, no hardware, no Xsolla account
 
@@ -48,6 +45,14 @@ pip install playwright && playwright install chromium
 cargo test --workspace
 ```
 
+## How it works
+
+Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
+over USB. The bridge forwards it to the game. The game asks the server. The
+server checks the card's spending limit and asks Xsolla for an order. The
+Xsolla checkout appears inside the game window. The player confirms. The game
+polls until the order is paid and grants the gems.
+
 ## Layout
 
 | Path | What |
@@ -77,7 +82,7 @@ tells `limit_exceeded` from `unknown_card`.
 Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
 partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
 sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
-tap completes with no click in about 45 seconds. Without the flag a tap creates
+tap completes with no click in about 27 seconds, 4 of them Xsolla. Without the flag a tap creates
 the order and the player confirms with one click on the test card.
 
 The server keeps its state in memory. Order tokens, per-card spend and the
