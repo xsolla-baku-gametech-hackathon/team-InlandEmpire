@@ -39,7 +39,7 @@ test("approved grants the catalogue amount for the sku that was bought", () => {
 test("declined keeps gems and shows the reason text, then dismiss returns to browsing", () => {
   const declined = play([
     { type: "buy", sku: "gems_500" },
-    { type: "tap", uid: "0B1C2D3E" },
+    { type: "tap", uid: "04D4E5F6" },
     { type: "response", response: { status: "declined", reason: "limit_exceeded" } },
   ]);
   assert.equal(declined.state.ok, false);
