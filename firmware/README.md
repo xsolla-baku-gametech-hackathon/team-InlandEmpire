@@ -41,8 +41,8 @@ sound. The server answers `approved` or `declined`; the game shows it.
 ## Registering the demo cards
 
 Hold each card, copy its `uid` from the Serial Monitor, and put the two values
-into `Registry::demo()` in `crates/tappad-server/src/registry.rs` as Dad and
-Kid. Until that is done both cards answer `unknown_card`.
+into `Registry::demo()` in `crates/tappad-server/src/registry.rs` as Gold and
+Starter. Until that is done both cards answer `unknown_card`.
 
 ## Run against the bridge
 
