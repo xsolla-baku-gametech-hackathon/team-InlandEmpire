@@ -9,11 +9,13 @@ mod bridge;
 mod config;
 mod error;
 mod server;
+mod tappad;
 
 pub use bridge::Pad;
 pub use config::Config;
 pub use error::SdkError;
 pub use server::ServerClient;
+pub use tappad::TapPad;
 pub use tappad_protocol::{
     CardUid, CatalogItem, Cents, DeclineReason, OrderId, OrderState, OrderStatus, PadEvent,
     PurchaseRequest, PurchaseResponse, ReceiptId, Sku, BRIDGE_WS_ADDR, SERVER_ADDR,
