@@ -116,6 +116,6 @@ connectBridge(BRIDGE_URL, {
 
 // Dev tools, no hardware: inject a Dad or Kid tap as if the bridge sent it.
 el.fakeTapDad.addEventListener("click", () => dispatch({ type: "tap", uid: "04A3B2C1" }));
-el.fakeTapKid.addEventListener("click", () => dispatch({ type: "tap", uid: "0B1C2D3E" }));
+el.fakeTapKid.addEventListener("click", () => dispatch({ type: "tap", uid: "04D4E5F6" }));
 
 render(state);

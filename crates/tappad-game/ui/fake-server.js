@@ -3,7 +3,7 @@
 // Never used unless the "Fake server (dev)" box in the footer is ticked.
 
 const DAD = "04A3B2C1";
-const KID = "0B1C2D3E";
+const KID = "04D4E5F6";
 const SKUS = new Set(["gems_100", "gems_500", "gems_1200"]);
 
 export function createFakeServer() {
