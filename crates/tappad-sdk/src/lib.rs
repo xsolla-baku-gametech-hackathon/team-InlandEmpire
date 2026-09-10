@@ -5,10 +5,12 @@
 //! a final state. The wire shapes come from `tappad-protocol` and are
 //! re-exported here so a game depends on one crate.
 
+mod bridge;
 mod config;
 mod error;
 mod server;
 
+pub use bridge::Pad;
 pub use config::Config;
 pub use error::SdkError;
 pub use server::ServerClient;

@@ -23,7 +23,4 @@ pub enum SdkError {
     /// The order did not reach a final state before the poll deadline.
     #[error("order {0} still not final after the poll timeout")]
     PollTimeout(OrderId),
-    /// The bridge connection is gone and will not come back.
-    #[error("bridge closed")]
-    BridgeClosed,
 }
