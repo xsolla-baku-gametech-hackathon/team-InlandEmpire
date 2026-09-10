@@ -163,5 +163,62 @@ impl fmt::Display for ReceiptId {
     }
 }
 
+// --------------------------------------------------------------- pad events
+
+/// One message from the pad, tagged by `event`. The firmware prints one per
+/// line over serial and the bridge forwards it unchanged over WebSocket.
+///
+/// Wire: `{"event":"ready","firmware":"0.1.0"}`,
+/// `{"event":"tap","uid":"04A3B2C1"}`,
+/// `{"event":"error","message":"reader timeout"}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub enum PadEvent {
+    /// The firmware booted and the reader answers.
+    Ready {
+        /// Firmware version string, for the log.
+        firmware: String,
+    },
+    /// A card was held on the pad.
+    Tap {
+        /// The card that was tapped.
+        uid: CardUid,
+    },
+    /// The reader failed; the pad keeps running.
+    Error {
+        /// Human readable cause, for the log.
+        message: String,
+    },
+}
+
+/// Why a serial line is not a [`PadEvent`].
+#[derive(Debug, thiserror::Error)]
+pub enum LineError {
+    /// The line was empty after trimming whitespace.
+    #[error("empty line")]
+    Empty,
+    /// The line was not the JSON of a known event. Boot noise from the chip,
+    /// unknown `event` values and bad UIDs all land here.
+    #[error("not a pad event: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+/// Parses one line read from the serial port into a [`PadEvent`].
+///
+/// Surrounding whitespace such as `\r\n` is ignored and extra JSON fields are
+/// tolerated, so the firmware can add debug fields without breaking the bridge.
+///
+/// # Errors
+///
+/// Returns [`LineError::Empty`] for a blank line and [`LineError::Json`] for
+/// anything that is not one of the known events, including chip boot noise.
+pub fn parse_line(line: &str) -> Result<PadEvent, LineError> {
+    let line = line.trim();
+    if line.is_empty() {
+        return Err(LineError::Empty);
+    }
+    Ok(serde_json::from_str(line)?)
+}
+
 #[cfg(test)]
 mod tests;
