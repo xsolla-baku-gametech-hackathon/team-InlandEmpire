@@ -2,3 +2,4 @@
 export { parseUid } from "./src/uid.js";
 export { TapPadError } from "./src/error.js";
 export { createServerClient, isFinal, isSuccess } from "./src/server.js";
+export { connectBridge, parsePadEvent } from "./src/bridge.js";
