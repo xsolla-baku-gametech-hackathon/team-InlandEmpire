@@ -9,11 +9,11 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] Everyone has `claude` running from the repo root
 - [x] Rust stable, `cargo tauri --version` prints [B]
 - [x] `cargo tauri dev` opens a blank window on the game laptop [B]
-- [ ] Xsolla Publisher Account, sandbox project, project id noted [A]
+- [x] Xsolla Publisher Account, sandbox project, project id noted [A]
 - [ ] Server API key created in Publisher Account [A]
 - [ ] Item `gems_500` in the catalogue, price 4.99 USD [A]
-- [ ] The `curl` in `docs/xsolla.md` returns a token and an order_id [A]
-- [ ] Test bank card numbers copied from Xsolla docs [A]
+- [x] The `curl` in `docs/xsolla.md` returns a token and an order_id [A]
+- [x] Test bank card numbers copied from Xsolla docs [A]
 - [ ] Arduino IDE flashes the ESP32, PN532 prints a card UID [H]
 - [ ] Two NFC cards, UIDs written down [H]
 - [ ] Skills installed in the repo: `npx skills add apollographql/skills@rust-best-practices` and `npx skills add nodnarbnitram/claude-code-extensions@tauri-v2` [C]
@@ -34,7 +34,7 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] `tappad-bridge --fake` broadcasts taps on `:8765` [C]
 - [ ] Game shows "tap detected" from the fake bridge [B]
 - [ ] Game calls `POST /purchase`, shows declined text [B]
-- [ ] Xsolla client creates a real sandbox order [A]
+- [x] Xsolla client creates a real sandbox order [A]
 - [ ] Bridge reads the real serial port [C]
 
 ## Checkpoint 13:00, tag `v0.1.0-mock`
