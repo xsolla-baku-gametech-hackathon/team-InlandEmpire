@@ -68,6 +68,9 @@ impl XsollaConfig {
 /// One order's payment token and when it was stored.
 struct Remembered {
     token: String,
+    /// The card's per-tap limit, so the amount the store actually charges can be
+    /// checked against it when the order is polled.
+    limit: Cents,
     at: Instant,
 }
 
@@ -146,20 +149,24 @@ impl XsollaProvider {
         self.tokens.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn remember(&self, order_id: OrderId, token: String) {
+    fn remember(&self, order_id: OrderId, token: String, limit: Cents) {
         let mut tokens = self.tokens();
         tokens.insert(
             order_id,
             Remembered {
                 token,
+                limit,
                 at: Instant::now(),
             },
         );
         evict(&mut tokens);
     }
 
-    fn token_for(&self, order_id: OrderId) -> Option<String> {
-        self.tokens().get(&order_id).map(|r| r.token.clone())
+    /// The payment token and the card limit stored with it.
+    fn remembered(&self, order_id: OrderId) -> Option<(String, Cents)> {
+        self.tokens()
+            .get(&order_id)
+            .map(|r| (r.token.clone(), r.limit))
     }
 }
 
@@ -184,10 +191,19 @@ struct TokenResponse {
     order_id: u64,
 }
 
-/// Answer to the order call. Only the field we act on.
+/// Answer to the order call. The amount is optional because `docs/xsolla.md` does
+/// not pin this part of the shape; when it is absent the amount check is skipped.
 #[derive(Debug, Deserialize)]
 struct OrderResponse {
     status: String,
+    #[serde(default)]
+    content: Option<OrderContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OrderContent {
+    #[serde(default)]
+    price: Option<StorePrice>,
 }
 
 /// Answer to the public catalogue call. Only the fields the shop shows.
@@ -259,6 +275,37 @@ pub fn parse_catalog(body: &str) -> Result<Vec<CatalogItem>, ProviderError> {
             })
         })
         .collect()
+}
+
+/// Refuses an order the store priced above the card's per-tap limit.
+///
+/// The registry checks the local catalogue price before the order is created, but
+/// the token request sends only a SKU, so the store charges whatever its own
+/// catalogue says. This is the second check, on the amount that was really billed.
+///
+/// # Errors
+/// The amount does not parse, or it is over the limit.
+fn check_amount(
+    order_id: OrderId,
+    content: Option<&OrderContent>,
+    limit: Cents,
+) -> Result<(), ProviderError> {
+    let Some(amount) = content.and_then(|c| c.price.as_ref()) else {
+        return Ok(());
+    };
+    let charged = parse_amount(&amount.amount)?;
+    if charged > limit {
+        tracing::error!(
+            ?order_id,
+            %charged,
+            %limit,
+            "the store charged more than this card may spend; refusing to report it paid"
+        );
+        return Err(ProviderError::Rejected(
+            "order amount is over the card limit".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Maps Xsolla's status string onto [`OrderState`].
@@ -351,7 +398,7 @@ impl PaymentProvider for XsollaProvider {
             .map_err(|e| ProviderError::Rejected(format!("bad token response: {e}")))?;
         let order_id = OrderId(created.order_id);
         let checkout_url = self.config.checkout_url(&created.token);
-        self.remember(order_id, created.token);
+        self.remember(order_id, created.token, purchase.limit);
         tracing::info!(owner = %purchase.owner, sku = %purchase.sku, ?order_id, "xsolla order created");
         if self.config.autopay {
             tokio::spawn(autopay(order_id, checkout_url.clone()));
@@ -363,8 +410,8 @@ impl PaymentProvider for XsollaProvider {
     }
 
     async fn order_state(&self, order_id: OrderId) -> Result<OrderState, ProviderError> {
-        let token = self
-            .token_for(order_id)
+        let (token, limit) = self
+            .remembered(order_id)
             .ok_or(ProviderError::UnknownOrder(order_id))?;
         let url = format!(
             "{}/api/v2/project/{}/order/{}",
@@ -384,6 +431,7 @@ impl PaymentProvider for XsollaProvider {
             .json()
             .await
             .map_err(|e| ProviderError::Rejected(format!("bad order response: {e}")))?;
+        check_amount(order_id, order.content.as_ref(), limit)?;
         parse_order_state(&order.status)
     }
 
@@ -464,6 +512,7 @@ mod tests {
             player_id: "gold-1".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
+            limit: Cents(5_000),
         }
     }
 
@@ -580,6 +629,7 @@ mod tests {
             OrderId(1),
             Remembered {
                 token: "old".into(),
+                limit: Cents(5_000),
                 at: stale,
             },
         );
@@ -587,6 +637,7 @@ mod tests {
             OrderId(2),
             Remembered {
                 token: "fresh".into(),
+                limit: Cents(5_000),
                 at: Instant::now(),
             },
         );
@@ -603,12 +654,42 @@ mod tests {
                 OrderId(1000 + i),
                 Remembered {
                     token: format!("t{i}"),
+                    limit: Cents(5_000),
                     at: base + Duration::from_millis(i),
                 },
             );
         }
         evict(&mut tokens);
         assert_eq!(tokens.len(), MAX_TOKENS, "the map must stay bounded");
+        Ok(())
+    }
+
+    #[test]
+    fn an_order_priced_over_the_card_limit_is_refused() {
+        let over = OrderContent {
+            price: Some(StorePrice {
+                amount: "99.00".into(),
+                currency: "USD".into(),
+            }),
+        };
+        let err = check_amount(OrderId(1), Some(&over), Cents(5_000));
+        assert!(
+            matches!(err, Err(ProviderError::Rejected(_))),
+            "9900 cents is over a 5000 cent limit, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn an_order_within_the_limit_or_without_an_amount_passes() -> Result<(), ProviderError> {
+        let within = OrderContent {
+            price: Some(StorePrice {
+                amount: "4.99".into(),
+                currency: "USD".into(),
+            }),
+        };
+        check_amount(OrderId(1), Some(&within), Cents(5_000))?;
+        check_amount(OrderId(1), None, Cents(5_000))?;
+        check_amount(OrderId(1), Some(&OrderContent { price: None }), Cents(1))?;
         Ok(())
     }
 

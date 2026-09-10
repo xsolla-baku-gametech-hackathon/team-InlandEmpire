@@ -63,8 +63,11 @@ pub struct Cleared {
     pub player_id: String,
     /// What they buy.
     pub sku: Sku,
-    /// What it costs.
+    /// What it costs in the local catalogue.
     pub price: Cents,
+    /// Most this card may spend on one tap. Carried through so the provider can
+    /// check the amount it is actually charging against it.
+    pub limit: Cents,
 }
 
 impl Registry {
@@ -148,6 +151,7 @@ impl Registry {
             player_id: card.player_id.clone(),
             sku: sku.clone(),
             price: item.price,
+            limit: card.limit,
         })
     }
 
@@ -188,6 +192,17 @@ impl Registry {
     #[must_use]
     pub fn gems_for(&self, sku: &Sku) -> Option<u32> {
         self.items.get(sku).map(|item| item.gems)
+    }
+
+    /// What the local catalogue thinks an item costs, if it is one we sell.
+    #[must_use]
+    pub fn price_for(&self, sku: &Sku) -> Option<Cents> {
+        self.items.get(sku).map(|item| item.price)
+    }
+
+    /// Every item we sell, for comparing against the store's own catalogue.
+    pub fn items(&self) -> impl Iterator<Item = (&Sku, Cents)> {
+        self.items.iter().map(|(sku, item)| (sku, item.price))
     }
 }
 

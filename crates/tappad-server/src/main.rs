@@ -47,10 +47,42 @@ async fn main() -> anyhow::Result<()> {
         registry: Arc::new(registry),
         provider,
     };
+    warn_on_price_drift(&state).await;
+
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .with_context(|| format!("cannot bind {addr}"))?;
     tracing::info!(%addr, provider = %provider_name, "tappad-server listening");
     axum::serve(listener, router(state)).await?;
     Ok(())
+}
+
+/// Compares the local catalogue against the provider's, because the token request
+/// sends only a SKU: the provider charges its own price, and the card limit was
+/// checked against ours. A difference is a warning, never a reason not to start.
+async fn warn_on_price_drift(state: &AppState) {
+    let items = match state.provider.catalog().await {
+        Ok(items) => items,
+        Err(err) => {
+            tracing::warn!(%err, "cannot read the provider catalogue, prices unchecked");
+            return;
+        }
+    };
+    for item in &items {
+        match state.registry.price_for(&item.sku) {
+            Some(local) if local == item.price => {}
+            Some(local) => tracing::warn!(
+                sku = %item.sku,
+                %local,
+                store = %item.price,
+                "price differs from the store; the card limit is checked against the local one"
+            ),
+            None => tracing::warn!(sku = %item.sku, "the store sells an item we do not"),
+        }
+    }
+    for (sku, price) in state.registry.items() {
+        if !items.iter().any(|i| &i.sku == sku) {
+            tracing::warn!(%sku, %price, "we sell an item the store does not");
+        }
+    }
 }

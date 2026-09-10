@@ -105,6 +105,7 @@ mod tests {
             player_id: "gold-1".into(),
             sku: Sku::new("gems_500"),
             price: Cents(499),
+            limit: Cents(5_000),
         }
     }
 
