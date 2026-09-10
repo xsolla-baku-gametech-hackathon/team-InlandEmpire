@@ -132,11 +132,11 @@ mod tests {
     use crate::provider::MockProvider;
     use crate::types::{DeclineReason, OrderState};
 
-    fn app() -> Router {
-        router(AppState {
-            registry: Arc::new(Registry::demo()),
+    fn app() -> anyhow::Result<Router> {
+        Ok(router(AppState {
+            registry: Arc::new(Registry::demo()?),
             provider: Arc::new(MockProvider::default()),
-        })
+        }))
     }
 
     async fn post_purchase(
@@ -154,7 +154,8 @@ mod tests {
 
     #[tokio::test]
     async fn dad_is_approved() -> anyhow::Result<()> {
-        let (status, body) = post_purchase(app(), r#"{"uid":"04A3B2C1","sku":"gems_500"}"#).await?;
+        let (status, body) =
+            post_purchase(app()?, r#"{"uid":"04A3B2C1","sku":"gems_500"}"#).await?;
         assert_eq!(status, StatusCode::OK);
         assert!(matches!(body, PurchaseResponse::Approved { .. }));
         Ok(())
@@ -162,7 +163,8 @@ mod tests {
 
     #[tokio::test]
     async fn kid_is_declined_with_200() -> anyhow::Result<()> {
-        let (status, body) = post_purchase(app(), r#"{"uid":"04D4E5F6","sku":"gems_500"}"#).await?;
+        let (status, body) =
+            post_purchase(app()?, r#"{"uid":"04D4E5F6","sku":"gems_500"}"#).await?;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
             body,
@@ -175,7 +177,7 @@ mod tests {
 
     #[tokio::test]
     async fn order_status_after_purchase() -> anyhow::Result<()> {
-        let app = app();
+        let app = app()?;
         let (_, body) =
             post_purchase(app.clone(), r#"{"uid":"04A3B2C1","sku":"gems_100"}"#).await?;
         let PurchaseResponse::Approved { order_id, .. } = body else {
@@ -199,7 +201,7 @@ mod tests {
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
             .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
             .body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = app()?.oneshot(req).await?;
         assert_eq!(res.status(), StatusCode::OK);
         let allow = res
             .headers()
@@ -224,7 +226,7 @@ mod tests {
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
             .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
             .body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = app()?.oneshot(req).await?;
         assert_eq!(
             res.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
             None,
@@ -236,7 +238,7 @@ mod tests {
     #[tokio::test]
     async fn catalog_lists_the_three_gem_packs() -> anyhow::Result<()> {
         let req = Request::get("/catalog").body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = app()?.oneshot(req).await?;
         assert_eq!(res.status(), StatusCode::OK);
         let body = res.into_body().collect().await?.to_bytes();
         let items: Vec<CatalogItem> = serde_json::from_slice(&body)?;
@@ -248,7 +250,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_order_is_404() -> anyhow::Result<()> {
         let req = Request::get("/orders/999").body(Body::empty())?;
-        let res = app().oneshot(req).await?;
+        let res = app()?.oneshot(req).await?;
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
         Ok(())
     }

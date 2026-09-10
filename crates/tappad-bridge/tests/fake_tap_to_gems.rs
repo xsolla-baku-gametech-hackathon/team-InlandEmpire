@@ -20,7 +20,7 @@ async fn fake_tap_gives_gems_with_mock_provider() -> anyhow::Result<()> {
     tokio::spawn(ws::serve(bridge, tx.clone()));
     tokio::spawn(source::run_fake(tx, Duration::from_millis(10)));
 
-    let registry = Arc::new(Registry::demo());
+    let registry = Arc::new(Registry::demo()?);
     let server = TcpListener::bind("127.0.0.1:0").await?;
     let server_addr = server.local_addr()?;
     let state = AppState {

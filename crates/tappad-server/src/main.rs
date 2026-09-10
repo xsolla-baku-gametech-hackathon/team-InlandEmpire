@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("TAPPAD_SERVER_ADDR").unwrap_or_else(|_| tappad_protocol::SERVER_ADDR.into());
 
     let state = AppState {
-        registry: Arc::new(Registry::demo()),
+        registry: Arc::new(Registry::demo().context("a demo card UID does not parse")?),
         provider,
     };
     let listener = tokio::net::TcpListener::bind(&addr)

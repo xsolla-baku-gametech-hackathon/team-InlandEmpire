@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::types::{CardUid, Cents, DeclineReason, Sku};
+use crate::types::{CardUid, Cents, DeclineReason, Sku, UidError};
 
 /// A registered card and its per-tap limit.
 #[derive(Debug, Clone)]
@@ -45,8 +45,11 @@ impl Registry {
     ///
     /// Two fake UIDs, used by `tappad-bridge --fake` and the game's dev buttons, and the two
     /// physical cards read on 2026-09-10 through the real pad on the demo laptop.
-    #[must_use]
-    pub fn demo() -> Self {
+    ///
+    /// # Errors
+    /// A demo UID that does not parse. That is a typo in this file, and it must stop the
+    /// server: a card that silently vanished would show up on stage as "not registered".
+    pub fn demo() -> Result<Self, UidError> {
         let card = |owner: &str, limit| Card {
             owner: owner.to_owned(),
             limit: Cents(limit),
@@ -55,16 +58,17 @@ impl Registry {
             price: Cents(price),
             gems,
         };
-        Self {
-            cards: [
-                ("04A3B2C1".parse(), card("Gold", 5_000)),
-                ("04D4E5F6".parse(), card("Starter", 100)),
-                ("C95DD006".parse(), card("Gold", 5_000)),
-                ("D9916906".parse(), card("Starter", 100)),
-            ]
-            .into_iter()
-            .filter_map(|(uid, card)| uid.ok().map(|uid| (uid, card)))
-            .collect(),
+        let mut cards = HashMap::new();
+        for (uid, card) in [
+            ("04A3B2C1", card("Gold", 5_000)),
+            ("04D4E5F6", card("Starter", 100)),
+            ("C95DD006", card("Gold", 5_000)),
+            ("D9916906", card("Starter", 100)),
+        ] {
+            cards.insert(uid.parse::<CardUid>()?, card);
+        }
+        Ok(Self {
+            cards,
             items: [
                 ("gems_100", item(99, 100)),
                 ("gems_500", item(499, 500)),
@@ -73,7 +77,13 @@ impl Registry {
             .into_iter()
             .map(|(sku, item)| (Sku::new(sku), item))
             .collect(),
-        }
+        })
+    }
+
+    /// How many cards are registered.
+    #[must_use]
+    pub fn card_count(&self) -> usize {
+        self.cards.len()
     }
 
     /// Applies the business rules.
@@ -103,8 +113,6 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::UidError;
-
     fn sku(s: &str) -> Sku {
         Sku::new(s)
     }
@@ -115,7 +123,7 @@ mod tests {
 
     #[test]
     fn dad_within_limit_is_cleared() -> Result<(), UidError> {
-        let cleared = Registry::demo().clear(&uid("04a3b2c1")?, &sku("gems_500"));
+        let cleared = Registry::demo()?.clear(&uid("04a3b2c1")?, &sku("gems_500"));
         assert!(matches!(
             cleared,
             Ok(Cleared {
@@ -128,14 +136,14 @@ mod tests {
 
     #[test]
     fn kid_over_limit_is_declined_without_error() -> Result<(), UidError> {
-        let result = Registry::demo().clear(&uid("04D4E5F6")?, &sku("gems_500"));
+        let result = Registry::demo()?.clear(&uid("04D4E5F6")?, &sku("gems_500"));
         assert_eq!(result.err(), Some(DeclineReason::LimitExceeded));
         Ok(())
     }
 
     #[test]
     fn unknown_card_and_sku() -> Result<(), UidError> {
-        let registry = Registry::demo();
+        let registry = Registry::demo()?;
         assert_eq!(
             registry.clear(&uid("FFFFFFFF")?, &sku("gems_100")).err(),
             Some(DeclineReason::UnknownCard)
@@ -144,6 +152,12 @@ mod tests {
             registry.clear(&uid("04A3B2C1")?, &sku("sword")).err(),
             Some(DeclineReason::UnknownSku)
         );
+        Ok(())
+    }
+
+    #[test]
+    fn the_demo_registry_keeps_every_card() -> Result<(), UidError> {
+        assert_eq!(Registry::demo()?.card_count(), 4);
         Ok(())
     }
 }
