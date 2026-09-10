@@ -49,7 +49,7 @@ cargo test --workspace
 | `crates/tappad-server` | Card registry, Xsolla client, `PaymentProvider` |
 | `crates/tappad-bridge` | Serial to WebSocket |
 | `crates/tappad-game` | Tauri desktop app |
-| `firmware/` | Arduino sketch for ESP32 + PN532 |
+| `firmware/` | Arduino sketch for ESP32 + RC522 |
 | `docs/` | Protocol, Xsolla setup, architecture |
 
 ## What is real and what is mocked
@@ -68,7 +68,7 @@ saved test card.
   cannot drift.
 - `PaymentProvider` trait: Xsolla in production, mock for offline demo and tests.
 - The API key lives only in the server process.
-- Firmware is Arduino C++ because the PN532 library is mature there and the
+- Firmware is Arduino C++ because the MFRC522 library is mature there and the
   chip only prints JSON lines.
 
 ## Roadmap
