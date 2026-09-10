@@ -16,6 +16,12 @@ polls until the order is paid and grants the gems.
 ## Run the demo, no hardware, no Xsolla account
 
 ```
+scripts/demo.sh                              # server, fake bridge, then the game if `cargo tauri` exists
+```
+
+Or by hand:
+
+```
 cargo run -p tappad-server                   # TAPPAD_PROVIDER=mock by default
 cargo run -p tappad-bridge -- --fake
 cargo tauri dev                              # from crates/tappad-game
@@ -24,10 +30,8 @@ cargo tauri dev                              # from crates/tappad-game
 ## Run against the Xsolla sandbox
 
 ```
-cp .env.example .env                         # fill in project id and API key
-TAPPAD_PROVIDER=xsolla cargo run -p tappad-server
-cargo run -p tappad-bridge -- --port /dev/cu.usbserial-XXXX
-cargo tauri dev
+cp .env.example .env                         # fill in project id and API key, TAPPAD_PROVIDER=xsolla
+scripts/demo.sh /dev/cu.usbserial-XXXX       # or COM3 on Windows
 ```
 
 ## Test
