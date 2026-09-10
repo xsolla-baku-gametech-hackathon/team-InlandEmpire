@@ -24,12 +24,15 @@ pub struct AppState {
     pub provider: Arc<dyn PaymentProvider>,
 }
 
-/// Origins the game is served from: the two Tauri webview origins, and the
+/// Origins the game is served from: the two Tauri webview origins of a built
+/// app, Tauri's own dev server under `cargo tauri dev` (port 1430), and the
 /// `python -m http.server` preview in `.claude/launch.json`. `from_static` is
 /// const, so a typo here fails the build instead of dropping an origin.
-const GAME_ORIGINS: [HeaderValue; 4] = [
+const GAME_ORIGINS: [HeaderValue; 6] = [
     HeaderValue::from_static("tauri://localhost"),
     HeaderValue::from_static("http://tauri.localhost"),
+    HeaderValue::from_static("http://localhost:1430"),
+    HeaderValue::from_static("http://127.0.0.1:1430"),
     HeaderValue::from_static("http://localhost:8790"),
     HeaderValue::from_static("http://127.0.0.1:8790"),
 ];
@@ -249,28 +252,47 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn preflight_from_the_game_origin_is_allowed() -> anyhow::Result<()> {
+    /// Preflights `POST /purchase` from `origin` and returns the
+    /// `Access-Control-Allow-Origin` and `Access-Control-Allow-Methods` values.
+    async fn preflight(origin: &str) -> anyhow::Result<(Option<String>, String)> {
         let req = Request::builder()
             .method(Method::OPTIONS)
             .uri("/purchase")
-            .header(header::ORIGIN, "http://tauri.localhost")
+            .header(header::ORIGIN, origin)
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
             .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
             .body(Body::empty())?;
         let res = app()?.oneshot(req).await?;
-        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.status(), StatusCode::OK, "{origin}");
         let allow = res
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-            .and_then(|v| v.to_str().ok());
-        assert_eq!(allow, Some("http://tauri.localhost"));
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
         let methods = res
             .headers()
             .get(header::ACCESS_CONTROL_ALLOW_METHODS)
             .and_then(|v| v.to_str().ok())
-            .unwrap_or_default();
-        assert!(methods.contains("POST"), "{methods}");
+            .unwrap_or_default()
+            .to_owned();
+        Ok((allow, methods))
+    }
+
+    #[tokio::test]
+    async fn preflight_from_every_game_origin_is_allowed() -> anyhow::Result<()> {
+        // The built app, `cargo tauri dev`, and the http.server preview.
+        for origin in [
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "http://127.0.0.1:1430",
+            "http://localhost:1430",
+            "http://127.0.0.1:8790",
+            "http://localhost:8790",
+        ] {
+            let (allow, methods) = preflight(origin).await?;
+            assert_eq!(allow.as_deref(), Some(origin));
+            assert!(methods.contains("POST"), "{origin}: {methods}");
+        }
         Ok(())
     }
 
