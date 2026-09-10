@@ -61,7 +61,7 @@ this file when it has verified the condition. Owner initials in brackets.
 - [ ] `docs/protocol.md` matches the code [C]
 - [ ] Clippy clean on every crate, no `unwrap` outside tests [all]
 - [ ] Each crate reviewed by someone who did not write it
-- [ ] Bonus only: `verify_signature` module with tests, no route [A]
+- [x] Bonus only: `verify_signature` module with tests, no route [A]
 
 ## Checkpoint 18:00, tag `v0.3.0-demo`
 
