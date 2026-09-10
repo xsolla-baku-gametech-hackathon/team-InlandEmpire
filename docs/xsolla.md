@@ -63,10 +63,28 @@ strings against the first real response and fix `OrderState` if they differ.
 
 ## Setup in Publisher Account (owner A, before kickoff)
 
-1. Sign up at publisher.xsolla.com, create a project. Project id is in the URL.
-2. Project settings, API keys: create a server key. Put it in `.env` only.
-3. Store, Virtual items: add `gems_500`, price 4.99 USD.
-4. Run the curl above. A token comes back or the day starts badly.
+Done on 2026-09-10. Merchant id 937757, project id 315338 (the number after
+`/projects/` in the URL, not the one after the host). The API key lives in
+`.env` only.
+
+Items were created through the Store admin API because the Publisher Account
+item form is a maze. Auth for that call is `merchant_id:api_key`, not
+`project_id:api_key`:
+
+```sh
+curl -u "937757:$XSOLLA_API_KEY" -H 'content-type: application/json' \
+  https://store.xsolla.com/api/v2/project/315338/admin/items/virtual_items \
+  -d '{"sku":"gems_500","name":{"en":"500 gems"},"description":{"en":"500 gems"},
+       "is_enabled":true,"is_free":false,"is_show_in_store":true,
+       "prices":[{"currency":"USD","amount":4.99,"is_default":true,"is_enabled":true}]}'
+```
+
+Catalog: `gems_100` 0.99, `gems_500` 4.99, `gems_1200` 9.99 USD. Server-side
+prices in `registry.rs` must match. A missing SKU makes the token call answer
+`422 Cart is empty`. Paid order 725985390 in the sandbox with Visa `4111 1111 1111 1111`,
+expiry `12/40` (any other expiry gives "Error 1055"), any CVV, ZIP 12345.
+`GET /orders/725985390` on the server went from `new` to `done` right after
+Pay Station showed "Payment successful", so the status strings above hold.
 
 ## Tokenization
 
