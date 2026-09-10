@@ -143,7 +143,11 @@ const MAX_TOKENS: usize = 10_000;
 /// Drops tokens older than [`TOKEN_TTL`], then the oldest ones if still over
 /// [`MAX_TOKENS`].
 fn evict(tokens: &mut HashMap<OrderId, Remembered>) {
-    let now = Instant::now();
+    evict_at(tokens, Instant::now());
+}
+
+/// [`evict`] with the clock spelled out, so a test does not depend on machine uptime.
+fn evict_at(tokens: &mut HashMap<OrderId, Remembered>, now: Instant) {
     tokens.retain(|_, r| now.duration_since(r.at) < TOKEN_TTL);
     if tokens.len() <= MAX_TOKENS {
         return;
@@ -766,15 +770,13 @@ mod tests {
     #[test]
     fn eviction_drops_stale_tokens_and_caps_the_map() -> anyhow::Result<()> {
         let mut tokens = HashMap::new();
-        let stale = Instant::now()
-            .checked_sub(TOKEN_TTL + Duration::from_secs(1))
-            .ok_or_else(|| anyhow::anyhow!("this machine booted less than the TTL ago"))?;
+        let base = Instant::now();
         tokens.insert(
             OrderId(1),
             Remembered {
                 token: "old".into(),
                 limit: Cents(5_000),
-                at: stale,
+                at: base,
             },
         );
         tokens.insert(
@@ -782,14 +784,13 @@ mod tests {
             Remembered {
                 token: "fresh".into(),
                 limit: Cents(5_000),
-                at: Instant::now(),
+                at: base + TOKEN_TTL,
             },
         );
-        evict(&mut tokens);
+        evict_at(&mut tokens, base + TOKEN_TTL + Duration::from_secs(1));
         assert!(!tokens.contains_key(&OrderId(1)), "a stale token must go");
         assert!(tokens.contains_key(&OrderId(2)), "a fresh token must stay");
 
-        let base = Instant::now();
         let over = u64::try_from(MAX_TOKENS)
             .unwrap_or(u64::MAX)
             .saturating_add(10);
@@ -803,7 +804,7 @@ mod tests {
                 },
             );
         }
-        evict(&mut tokens);
+        evict_at(&mut tokens, base + Duration::from_secs(60));
         assert_eq!(tokens.len(), MAX_TOKENS, "the map must stay bounded");
         Ok(())
     }
