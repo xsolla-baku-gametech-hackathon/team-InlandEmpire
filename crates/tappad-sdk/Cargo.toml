@@ -1,0 +1,26 @@
+[package]
+name = "tappad-sdk"
+description = "Client library for games that sell through TapPad: taps from the bridge, purchases through the server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+futures-util.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+tappad-protocol.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+axum.workspace = true
+tappad-bridge = { path = "../tappad-bridge" }
+tappad-server = { path = "../tappad-server" }
+
+[lints]
+workspace = true
