@@ -233,6 +233,46 @@ mod tests {
         })
     }
 
+    /// A server whose provider is down: every purchase is 502 with an `ErrorBody`.
+    async fn broken_provider_server() -> anyhow::Result<Config> {
+        use axum::http::StatusCode;
+        use axum::routing::post;
+        use axum::Json;
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let app = axum::Router::new().route(
+            "/purchase",
+            post(|| async {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(ErrorBody {
+                        error: "provider failed".into(),
+                    }),
+                )
+            }),
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        Ok(Config {
+            server_url: format!("http://{addr}"),
+            ..Config::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn a_provider_failure_is_a_502_with_the_server_text() -> anyhow::Result<()> {
+        let client = ServerClient::new(&broken_provider_server().await?)?;
+        match client.purchase(gold()?, Sku::new("gems_500")).await {
+            Err(SdkError::Server {
+                status: 502,
+                message,
+            }) => {
+                assert_eq!(message, "provider failed");
+                Ok(())
+            }
+            other => anyhow::bail!("expected 502, got {other:?}"),
+        }
+    }
+
     #[tokio::test]
     async fn a_stuck_order_times_out_with_its_id() -> anyhow::Result<()> {
         let client = ServerClient::new(&stuck_server().await?)?;

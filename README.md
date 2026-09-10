@@ -60,7 +60,8 @@ polls until the order is paid and grants the gems.
 | `crates/tappad-protocol` | Shared message types |
 | `crates/tappad-server` | Card registry, Xsolla client, `PaymentProvider` |
 | `crates/tappad-bridge` | Serial to WebSocket |
-| `crates/tappad-sdk` | Client library for games: taps in, purchases out. Not used by the demo game |
+| `crates/tappad-sdk` | Client library for Rust games: taps in, purchases out. Not used by the demo game |
+| `sdk/tappad-js` | The same for browser and Tauri games, plain ES modules. Not used by the demo game |
 | `crates/tappad-game` | Tauri desktop app |
 | `firmware/` | Arduino sketch for ESP32 + RC522 |
 | `docs/` | Protocol, Xsolla setup, architecture |

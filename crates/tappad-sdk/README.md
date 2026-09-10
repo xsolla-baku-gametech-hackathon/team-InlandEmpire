@@ -78,6 +78,8 @@ cargo run -p tappad-sdk --example tap_to_gems
 | `TapPad::catalog` | `GET /catalog` | Items in store order, price in cents. |
 | `TapPad::buy` | `POST /purchase` | A decline is `Ok(Declined)`, not an error. |
 | `TapPad::wait_for_payment` | `GET /orders/{id}` every 800 ms | Stops at a final state or after five minutes. |
+| `TapPad::buy_and_settle` | both of the above | Hands the checkout URL to a closure, waits, returns an `Outcome`: `Granted`, `Declined` or `NotPaid`. |
+| `TapPad::next_event` | bridge WebSocket | Every pad event, `ready` and `error` included, for a status line. |
 
 `TapPad::pad()` gives the raw `Pad` for `ready` and `error` events;
 `TapPad::server()` gives the `ServerClient` when taps come from somewhere else.
@@ -90,7 +92,9 @@ Xsolla failed or 404 for an order it never made. `Protocol` means the body
 was not the documented shape. `PollTimeout` names the order that never
 settled. Business answers such as "limit exceeded" are never errors; they are
 a `PurchaseResponse::Declined` with a `DeclineReason` that has player-facing
-text in `reason.message()`.
+text in `reason.message()`. `SdkError::is_retryable` says whether trying the
+same call again can help: yes for `Transport`, 5xx and `PollTimeout`, no for
+4xx and `Protocol`.
 
 ## Not in this crate
 
