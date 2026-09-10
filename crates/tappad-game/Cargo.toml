@@ -1,0 +1,21 @@
+[package]
+name = "tappad-game"
+description = "Desktop shop window that shows the Xsolla checkout in-game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "tappad_game"
+crate-type = ["lib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

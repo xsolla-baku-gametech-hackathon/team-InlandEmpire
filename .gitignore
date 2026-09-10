@@ -1,0 +1,7 @@
+/target
+.env
+*.log
+.DS_Store
+crates/tappad-game/node_modules
+crates/tappad-game/dist
+crates/tappad-game/gen

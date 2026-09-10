@@ -1,49 +1,136 @@
-# Xsolla Baku GameTech Hackathon
+# TapPad
 
-Welcome! This repository is the starting template for teams participating in the **Xsolla Baku GameTech Hackathon** (September 9–11).
+Tap a card on a USB pad, pay inside the game window, get the item.
+Tap-to-pay for desktop games, built on Xsolla.
 
-## About the Hackathon
+![architecture](docs/architecture.png)
 
-Xsolla Baku is organizing a GameTech Hackathon to introduce Azerbaijan's developer community to the gametech industry and give developers a chance to build real prototype solutions.
+## How it works
 
-- **Sept 9** — Workshops: Xsolla team members introduce industry solutions and challenges across different gametech areas.
-- **Sept 10–11** — Build days: teams design and build a prototype solution, then present it to the jury.
+Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
+over USB. The bridge forwards it to the game. The game asks the server. The
+server checks the card's spending limit and asks Xsolla for an order. The
+Xsolla checkout appears inside the game window. The player confirms. The game
+polls until the order is paid and grants the gems.
 
-## How to Use This Template
+## Run the demo, no hardware, no Xsolla account
 
-1. Click **"Use this template"** at the top of this repo (not "Fork").
-2. Name your new repo `team-yourteamname` — use the same team name you registered with, so it's easy to match against the participant list.
-3. Set your new repo to **Public**.
-4. Add your teammates as collaborators (or ask the organizers to add them — you'll need to have submitted GitHub profile links during registration).
-5. Start building! Commit early and often — your commit history is part of how the project is evaluated.
+```
+make demo                                    # server, fake bridge, then the game if `cargo tauri` exists
+scripts\demo.ps1                             # same on Windows without make
+```
 
-## Judging Categories
+Or by hand:
 
-| Category | What it means |
+```
+cargo run -p tappad-server                   # TAPPAD_PROVIDER=mock by default
+cargo run -p tappad-bridge -- --fake
+cargo tauri dev                              # from crates/tappad-game
+```
+
+## Run against the Xsolla sandbox
+
+```
+cp .env.example .env                         # fill in project id and API key, TAPPAD_PROVIDER=xsolla
+make demo PORT=/dev/cu.usbserial-XXXX        # or scripts\demo.ps1 COM3 on Windows
+```
+
+Tap-only, no click, sandbox only: set `TAPPAD_AUTOPAY=true` in `.env` and
+install the headless checkout once:
+
+```
+pip install playwright && playwright install chromium
+```
+
+## Test
+
+```
+cargo test --workspace
+```
+
+## Layout
+
+| Path | What |
 |---|---|
-| **Best Project** | Overall strongest execution and prototype quality |
-| **Best Idea** | Most original/impactful concept |
-| **Best Code** | Code quality, structure, readability |
-| **Most GitHub Commits** | Team repo with the most commits as of the end of Sept 11 |
+| `crates/tappad-protocol` | Shared message types |
+| `crates/tappad-server` | Card registry, Xsolla client, `PaymentProvider` |
+| `crates/tappad-bridge` | Serial to WebSocket |
+| `crates/tappad-game` | Tauri desktop app |
+| `firmware/` | Arduino sketch for ESP32 + RC522 |
+| `docs/` | Protocol, Xsolla setup, architecture |
 
-## Ground Rules
+## What is real and what is mocked
 
-- All work must happen in your team's public repo on this GitHub organization.
-- Development happens during the official build window (Sept 10–11). Work done before or after this window may not count toward judging.
-- Keep commits meaningful — commit history should reflect real progress, not artificially inflate commit counts. As a reference, consider following [Semantic Commit Messages](https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716) conventions for clear, structured commit messages.
-- No confidential or proprietary Xsolla data may be used or shared in your project.
-- Be respectful and collaborative — see [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+Real: the pad, the card read, order creation in the Xsolla sandbox, the
+sandbox checkout inside the game, order status polling.
 
-## Submission Checklist
+Card identity is an allowlist of UIDs in code (`Registry::demo` in
+`crates/tappad-server/src/registry.rs`). The white card with the Xsolla sticker
+is listed and approved for every pack. The white card with the All The Things
+sticker is listed with a zero spending limit, so it is always declined. There
+is no card enrolment and no lookup anywhere. A phone paying with Apple Pay is
+declined because it emits a fresh random UID on every tap, so it can never
+match the list; that is the allowlist doing its job, not a rule about phones.
+The game shows "Card declined." for both kinds of decline; only the server log
+tells `limit_exceeded` from `unknown_card`.
 
-- [ ] Repo is public and named `team-yourteamname`
-- [ ] README explains what your project does and how to run it
-- [ ] All teammates are added as collaborators
-- [ ] Final commit made before the Sept 11 deadline
-- [ ] Presentation prepared for the jury
+Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
+partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
+sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
+tap completes with no click in about 45 seconds. Without the flag a tap creates
+the order and the player confirms with one click on the test card.
 
-## Questions?
+The server keeps its state in memory. Order tokens, per-card spend and the
+double-tap cache go away on restart, and an order created before a restart is
+unknown afterwards: `GET /orders/{id}` answers 404 for it.
 
-The Google Developers Group (GDG) team will be coordinating and supporting teams throughout the hackathon — reach out to them in person during the event, or through whatever channel is shared with participants at kickoff.
+The spending limit is checked twice, and neither check is complete on its own.
+Before the order is created the server compares its own catalogue price against
+the card's limit. The token request sends only a SKU, so Xsolla charges whatever
+its catalogue says; when the order is polled the server therefore also refuses
+to report it paid if the answer carries an amount above the limit. That amount
+field is taken from the Xsolla docs and has not yet been confirmed against a
+real response, so on the day the second check may simply never fire. The server
+logs a warning at startup when a local price differs from the store's.
 
-Good luck, and have fun building! 🎮
+With `TAPPAD_AUTOPAY=true` the server launches a headless Chromium through
+`scripts/autopay.py` for every sandbox order, at most two at a time, each given
+up on after two minutes. It needs Python and Playwright on `PATH`.
+
+## Threat model
+
+The server is built for one laptop or a trusted LAN, and it is not hardened for
+anything else. It has no authentication. The card UID is not a secret: anyone
+who can read a card, or guess a UID, can post a purchase for it, which is why
+the per-tap limit, the per-card cap (`TAPPAD_CARD_CAP_CENTS`, $500 by default)
+and the three second double-tap window exist. Only the game's own origins may
+call it from a browser, and it refuses to listen on anything but loopback
+unless `TAPPAD_ALLOW_REMOTE=1` says otherwise. The Xsolla API key is read once
+into a `SecretString`, never logged and never sent to the game; upstream errors
+are logged in full but reach the page as a fixed sentence. The bridge prints
+card UIDs at `info` so new cards can be read off the log and enrolled.
+
+## Engineering decisions
+
+- Money is integer cents.
+- One shared crate for message types so firmware, bridge, server and game
+  cannot drift.
+- `PaymentProvider` trait: Xsolla in production, mock for offline demo and tests.
+- The API key lives only in the server process.
+- Firmware is Arduino C++ because the MFRC522 library is mature there and the
+  chip only prints JSON lines.
+
+## Roadmap
+
+USB pad today. Xsolla Tokenization for true one tap. Pad built into gaming
+lounge seats. Launcher integration.
+
+## Team
+
+Names here.
+
+## Hackathon
+
+Xsolla Baku GameTech Hackathon, Sept 9–11. Organiser rules are in
+[`docs/hackathon-rules.md`](docs/hackathon-rules.md), conduct in
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

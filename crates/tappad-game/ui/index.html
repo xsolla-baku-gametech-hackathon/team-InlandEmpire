@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TapPad</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glow glow-a" aria-hidden="true"></div>
+  <div class="glow glow-b" aria-hidden="true"></div>
+
+  <header>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 6a8 8 0 0 1 16 0M7 9a5 5 0 0 1 10 0M10 12a2 2 0 0 1 4 0v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </span>
+      <span class="brand-name">TapPad</span>
+      <span id="bridge-link" class="pad-pill" data-up="false"><i></i><span>pad offline</span></span>
+    </div>
+    <div class="wallet" aria-live="polite">
+      <svg class="gem" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z" fill="url(#g)"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe58a"/><stop offset="1" stop-color="#e0a000"/></linearGradient></defs></svg>
+      <span id="gem-count">0</span>
+    </div>
+  </header>
+
+  <main>
+    <p class="eyebrow">Gem shop</p>
+    <h1>Pick a pack. Tap to pay.</h1>
+    <section id="shop" aria-label="Items"></section>
+  </main>
+
+  <section id="sheet" class="sheet" hidden>
+    <div class="sheet-box" data-state="waiting_for_tap">
+      <div class="rings" aria-hidden="true"><i></i><i></i><i></i>
+        <svg class="card-icon" viewBox="0 0 48 48" width="56" height="56"><rect x="4" y="10" width="40" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M4 18h40" stroke="currentColor" stroke-width="2.5"/><path d="M30 28a4 4 0 0 1 8 0M27 25a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <svg class="check-icon" viewBox="0 0 48 48" width="56" height="56"><path d="M12 25l8 8 16-18" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="cross-icon" viewBox="0 0 48 48" width="56" height="56"><path d="M15 15l18 18M33 15L15 33" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+      </div>
+      <h2 id="sheet-title">Tap your card</h2>
+      <p id="sheet-text"></p>
+      <p id="sheet-delta" class="delta" hidden></p>
+      <button type="button" id="dismiss" class="ghost">Cancel</button>
+    </div>
+  </section>
+
+  <section id="checkout" hidden>
+    <div class="checkout-box">
+      <iframe id="checkout-frame" title="Xsolla checkout"></iframe>
+      <button type="button" id="checkout-cancel" class="ghost">Cancel payment</button>
+    </div>
+  </section>
+
+  <footer>
+    <p id="status" data-state="browsing">Pick an item.</p>
+    <p class="devbar">
+      <button type="button" id="fake-tap-gold" class="dev">Fake tap: Gold</button>
+      <button type="button" id="fake-tap-starter" class="dev">Fake tap: Starter</button>
+      <label class="dev-toggle"><input type="checkbox" id="fake-server"> Fake server</label>
+    </p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
