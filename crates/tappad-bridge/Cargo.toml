@@ -1,0 +1,22 @@
+[package]
+name = "tappad-bridge"
+description = "Reads pad events from USB serial, or fakes them, and broadcasts them to the game over WebSocket"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+serde_json.workspace = true
+serialport.workspace = true
+tappad-protocol.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

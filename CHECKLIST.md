@@ -10,8 +10,8 @@ this file when it has verified the condition. Owner initials in brackets.
 - [x] Rust stable, `cargo tauri --version` prints [B]
 - [x] `cargo tauri dev` opens a blank window on the game laptop [B]
 - [x] Xsolla Publisher Account, sandbox project, project id noted [A]
-- [ ] Server API key created in Publisher Account [A]
-- [ ] Item `gems_500` in the catalogue, price 4.99 USD [A]
+- [x] Server API key created in Publisher Account [A]
+- [x] Item `gems_500` in the catalogue, price 4.99 USD [A]
 - [x] The `curl` in `docs/xsolla.md` returns a token and an order_id [A]
 - [x] Test bank card numbers copied from Xsolla docs [A]
 - [ ] Arduino IDE flashes the ESP32, PN532 prints a card UID [H]
@@ -31,7 +31,7 @@ this file when it has verified the condition. Owner initials in brackets.
 
 ## Hours 2 to 3
 
-- [ ] `tappad-bridge --fake` broadcasts taps on `:8765` [C]
+- [x] `tappad-bridge --fake` broadcasts taps on `:8765` [C]
 - [x] Game shows "tap detected" from the fake bridge [B]
 - [x] Game calls `POST /purchase`, shows declined text [B]
 - [x] Xsolla client creates a real sandbox order [A]
