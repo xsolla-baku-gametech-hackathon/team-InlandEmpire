@@ -45,7 +45,7 @@ this file when it has verified the condition. Owner initials in brackets.
 ## Hours 4 to 5
 
 - [ ] iframe shows the sandbox checkout inside the game [B]
-- [ ] Polling flips to paid, gems granted [B]
+- [x] Polling flips to paid, gems granted [B]
 - [ ] Real pad tap starts a real sandbox purchase [A B C H]
 - [ ] Integration test: fake tap to gems, mock provider [C]
 

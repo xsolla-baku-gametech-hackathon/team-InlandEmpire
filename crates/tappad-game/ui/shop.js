@@ -8,6 +8,9 @@ export const CATALOGUE = Object.freeze({
   gems_1200: 1200,
 });
 
+/** How often the game asks `GET /orders/{id}` while the checkout is open. */
+export const POLL_MS = 800;
+
 /** Player-facing text per decline reason from docs/protocol.md. */
 export const DECLINE_TEXT = Object.freeze({
   unknown_card: "This card is not registered.",
@@ -20,7 +23,7 @@ export const initialState = Object.freeze({ name: "browsing", gems: 0, note: "Pi
 
 /**
  * @param {object} state  current state
- * @param {object} event  one of: buy, tap, response, failure, dismiss
+ * @param {object} event  one of: buy, tap, response, order, failure, dismiss
  * @returns {{ state: object, effects: object[] }}
  */
 export function transition(state, event) {
@@ -31,6 +34,8 @@ export function transition(state, event) {
       return waitingForTap(state, event);
     case "purchasing":
       return purchasing(state, event);
+    case "awaiting_checkout":
+      return awaitingCheckout(state, event);
     case "result":
       return result(state, event);
     default:
@@ -99,13 +104,19 @@ function onResponse(state, response) {
         text: DECLINE_TEXT[response.reason] ?? `Declined: ${response.reason}.`,
       });
     case "pending_payment":
-      // Checkout iframe and polling arrive with the next task; until then say so honestly.
-      return next({
-        name: "result",
-        gems: state.gems,
-        ok: false,
-        text: `Order ${response.order_id} needs checkout, which this build does not open yet.`,
-      });
+      return next(
+        {
+          name: "awaiting_checkout",
+          gems: state.gems,
+          sku: state.sku,
+          orderId: response.order_id,
+          checkoutUrl: response.checkout_url,
+        },
+        [
+          { type: "open_checkout", url: response.checkout_url },
+          { type: "poll", orderId: response.order_id },
+        ],
+      );
     default:
       return next({
         name: "result",
@@ -113,6 +124,52 @@ function onResponse(state, response) {
         ok: false,
         text: "The server sent an unknown answer.",
       });
+  }
+}
+
+function awaitingCheckout(state, event) {
+  switch (event.type) {
+    case "order":
+      return onOrderState(state, event.state);
+    case "dismiss":
+      return next(
+        { name: "result", gems: state.gems, ok: false, text: "Payment was cancelled." },
+        [{ type: "stop_polling" }, { type: "close_checkout" }],
+      );
+    case "failure":
+      // One failed poll is not a failed payment; keep polling until a final state.
+      return stay(state);
+    default:
+      return stay(state);
+  }
+}
+
+function onOrderState(state, orderState) {
+  const done = [{ type: "stop_polling" }, { type: "close_checkout" }];
+  switch (orderState) {
+    case "paid":
+    case "done": {
+      const granted = CATALOGUE[state.sku];
+      return next(
+        {
+          name: "result",
+          gems: state.gems + granted,
+          ok: true,
+          text: `Paid. Added ${granted} gems. Order ${state.orderId}.`,
+        },
+        done,
+      );
+    }
+    case "canceled":
+    case "expired":
+      return next({ name: "result", gems: state.gems, ok: false, text: "Payment was cancelled." }, done);
+    case "new":
+      return stay(state);
+    default:
+      return next(
+        { name: "result", gems: state.gems, ok: false, text: `Unknown order state: ${orderState}.` },
+        done,
+      );
   }
 }
 

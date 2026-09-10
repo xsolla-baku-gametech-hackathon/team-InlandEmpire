@@ -17,7 +17,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:8765 http://127.0.0.1:8080",
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:8765 http://127.0.0.1:8080; frame-src https://sandbox-secure.xsolla.com https://secure.xsolla.com",
       "capabilities": ["default"]
     }
   },
