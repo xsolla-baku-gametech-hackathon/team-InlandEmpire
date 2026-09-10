@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createServerClient, TapPadError } from "../index.js";
+import { createServerClient, isFinal, isSuccess, TapPadError } from "../index.js";
 import { fakeFetch } from "./fake-fetch.mjs";
 
 const gems = [
@@ -67,4 +67,45 @@ test("a decline is an answer, not a rejection", async () => {
 test("a purchase answer with an unknown status is a protocol error", async () => {
   const server = createServerClient("http://s", { fetch: fakeFetch(() => ({ body: { status: "maybe" } })) });
   await assert.rejects(server.purchase("04A3B2C1", "gems_500"), (err) => err.kind === "protocol");
+});
+
+test("order states: every final state is named, only paid and done grant", () => {
+  for (const s of ["paid", "done", "canceled", "expired"]) assert.equal(isFinal(s), true, s);
+  assert.equal(isFinal("new"), false);
+  assert.equal(isSuccess("paid"), true);
+  assert.equal(isSuccess("done"), true);
+  assert.equal(isSuccess("canceled"), false);
+  assert.equal(isSuccess("new"), false);
+});
+
+test("waitUntilFinal polls until the order is final", async () => {
+  const states = ["new", "new", "paid"];
+  const fetch = fakeFetch(() => ({ body: { order_id: 5, state: states.shift() } }));
+  const slept = [];
+  const server = createServerClient("http://s", {
+    fetch,
+    pollIntervalMs: 800,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  assert.equal(await server.waitUntilFinal(5), "paid");
+  assert.equal(fetch.calls.length, 3);
+  assert.deepEqual(slept, [800, 800]);
+  assert.equal(fetch.calls[0].url, "http://s/orders/5");
+});
+
+test("waitUntilFinal gives up at the deadline and names the order", async () => {
+  const server = createServerClient("http://s", {
+    fetch: fakeFetch(() => ({ body: { order_id: 9, state: "new" } })),
+    pollIntervalMs: 5,
+    pollTimeoutMs: 20,
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  });
+  await assert.rejects(server.waitUntilFinal(9), (err) => err.kind === "poll_timeout" && err.orderId === 9);
+});
+
+test("an unknown order surfaces the server's 404", async () => {
+  const server = createServerClient("http://s", {
+    fetch: fakeFetch(() => ({ status: 404, body: { error: "unknown order" } })),
+  });
+  await assert.rejects(server.orderStatus(1), (err) => err.kind === "server" && err.status === 404);
 });
