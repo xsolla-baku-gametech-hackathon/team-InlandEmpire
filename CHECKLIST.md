@@ -21,7 +21,7 @@ this file when it has verified the condition. Owner initials in brackets.
 
 ## Hour 1
 
-- [ ] `tappad-protocol` builds, tests pass [C]
+- [x] `tappad-protocol` builds, tests pass [C]
 - [ ] CI green on `dev` [C]
 - [ ] `POST /purchase` with mock returns `approved` for Dad [A]
 - [ ] `POST /purchase` with mock returns `declined limit_exceeded` for Kid [A]

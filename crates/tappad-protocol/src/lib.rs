@@ -220,5 +220,150 @@ pub fn parse_line(line: &str) -> Result<PadEvent, LineError> {
     Ok(serde_json::from_str(line)?)
 }
 
+// ----------------------------------------------------------------- purchase
+
+/// Body of `POST /purchase`, sent by the game after a tap.
+///
+/// Wire: `{"uid":"04A3B2C1","sku":"gems_500"}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurchaseRequest {
+    /// The card that was tapped.
+    pub uid: CardUid,
+    /// The item the player clicked Buy on.
+    pub sku: Sku,
+}
+
+/// Why the server declined a purchase before or instead of asking Xsolla.
+///
+/// Wire: `"unknown_card"`, `"limit_exceeded"`, `"insufficient_funds"`,
+/// `"unknown_sku"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclineReason {
+    /// The card is not in the registry.
+    UnknownCard,
+    /// The item costs more than this card may spend.
+    LimitExceeded,
+    /// The card's balance does not cover the item.
+    InsufficientFunds,
+    /// The item is not in the catalogue.
+    UnknownSku,
+}
+
+impl DeclineReason {
+    /// Every reason, so a test can prove each one has player-facing text.
+    pub const ALL: [DeclineReason; 4] = [
+        DeclineReason::UnknownCard,
+        DeclineReason::LimitExceeded,
+        DeclineReason::InsufficientFunds,
+        DeclineReason::UnknownSku,
+    ];
+
+    /// The sentence the game shows the player. Lives here so it is typed once.
+    #[must_use]
+    pub fn message(self) -> &'static str {
+        match self {
+            DeclineReason::UnknownCard => "This card is not registered.",
+            DeclineReason::LimitExceeded => "Over this card's spending limit.",
+            DeclineReason::InsufficientFunds => "Not enough funds on this card.",
+            DeclineReason::UnknownSku => "This item does not exist.",
+        }
+    }
+}
+
+/// Body of the `POST /purchase` answer, tagged by `status`. Always HTTP 200:
+/// a decline is a business answer, not a server error.
+///
+/// Wire: `{"status":"pending_payment","order_id":12345,"checkout_url":"https://..."}`,
+/// `{"status":"approved","order_id":7,"receipt_id":"rcpt-000007"}`,
+/// `{"status":"declined","reason":"limit_exceeded"}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum PurchaseResponse {
+    /// Xsolla created an order; the game opens `checkout_url` and polls.
+    PendingPayment {
+        /// The order to poll with `GET /orders/{id}`.
+        order_id: OrderId,
+        /// The Xsolla checkout page to load in the game's iframe.
+        checkout_url: String,
+    },
+    /// Paid already, for example with the mock provider. Grant the item now.
+    Approved {
+        /// The order that was paid.
+        order_id: OrderId,
+        /// The receipt for the log.
+        receipt_id: ReceiptId,
+    },
+    /// The registry said no. Show [`DeclineReason::message`] to the player.
+    Declined {
+        /// Why the purchase was declined.
+        reason: DeclineReason,
+    },
+}
+
+impl PurchaseResponse {
+    /// Builds the declined answer for a reason.
+    #[must_use]
+    pub fn declined(reason: DeclineReason) -> Self {
+        PurchaseResponse::Declined { reason }
+    }
+}
+
+// ------------------------------------------------------------------- orders
+
+/// Where an order is in its life. Wire: `"new"`, `"paid"`, `"done"`,
+/// `"canceled"`, `"expired"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderState {
+    /// Created, not paid yet. Keep polling.
+    New,
+    /// The player paid.
+    Paid,
+    /// Paid and fulfilled on Xsolla's side.
+    Done,
+    /// The player closed the checkout.
+    Canceled,
+    /// The checkout timed out.
+    Expired,
+}
+
+impl OrderState {
+    /// True when the state will not change again, so the game can stop polling.
+    #[must_use]
+    pub fn is_final(self) -> bool {
+        !matches!(self, OrderState::New)
+    }
+
+    /// True when the player should get the item.
+    #[must_use]
+    pub fn is_success(self) -> bool {
+        matches!(self, OrderState::Paid | OrderState::Done)
+    }
+}
+
+/// Body of the `GET /orders/{id}` answer.
+///
+/// Wire: `{"order_id":12345,"state":"paid"}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrderStatus {
+    /// The order that was asked about.
+    pub order_id: OrderId,
+    /// Its current state.
+    pub state: OrderState,
+}
+
+// -------------------------------------------------------------------- errors
+
+/// Body of any non-2xx answer from the server, for example HTTP 502 when the
+/// payment provider failed.
+///
+/// Wire: `{"error":"..."}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorBody {
+    /// What went wrong, in words safe to show in a log.
+    pub error: String,
+}
+
 #[cfg(test)]
 mod tests;
