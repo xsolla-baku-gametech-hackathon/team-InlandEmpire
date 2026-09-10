@@ -4,7 +4,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tappad_sdk::{Config, PadEvent, PurchaseResponse, Sku, TapPad};
+use tappad_sdk::{Config, Outcome, PadEvent, PurchaseResponse, Sku, TapPad};
 use tappad_server::provider::MockProvider;
 use tappad_server::registry::Registry;
 use tappad_server::routes::{router, AppState};
@@ -47,6 +47,15 @@ async fn a_tap_buys_gems_and_the_order_settles() -> anyhow::Result<()> {
         PurchaseResponse::Declined { reason } => anyhow::bail!("declined: {reason:?}"),
     };
     assert!(tappad.wait_for_payment(order_id).await?.is_success());
+
+    // The same again in one call; the mock never needs a checkout.
+    let uid = tokio::time::timeout(Duration::from_secs(5), tappad.next_tap()).await?;
+    let mut checkout_opened = false;
+    let outcome = tappad
+        .buy_and_settle(uid, Sku::new("gems_100"), |_| checkout_opened = true)
+        .await?;
+    assert!(matches!(outcome, Outcome::Granted { .. }), "{outcome:?}");
+    assert!(!checkout_opened, "the mock approves without a checkout");
     Ok(())
 }
 
