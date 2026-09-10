@@ -5,7 +5,7 @@ import { BRIDGE_URL, SERVER_URL } from "./config.js";
 import { connectBridge } from "./bridge.js";
 import { createServer } from "./server.js";
 import { createFakeServer } from "./fake-server.js";
-import { initialState, transition } from "./shop.js";
+import { POLL_MS, initialState, transition } from "./shop.js";
 
 const el = {
   gems: document.getElementById("gem-count"),
@@ -13,6 +13,9 @@ const el = {
   link: document.getElementById("bridge-link"),
   buttons: document.querySelectorAll(".buy"),
   dismiss: document.getElementById("dismiss"),
+  checkout: document.getElementById("checkout"),
+  checkoutFrame: document.getElementById("checkout-frame"),
+  checkoutCancel: document.getElementById("checkout-cancel"),
   fakeTapDad: document.getElementById("fake-tap-dad"),
   fakeTapKid: document.getElementById("fake-tap-kid"),
   fakeServer: document.getElementById("fake-server"),
@@ -21,6 +24,7 @@ const el = {
 const realServer = createServer(SERVER_URL);
 const fakeServer = createFakeServer();
 let state = initialState;
+let pollTimer = null;
 
 function server() {
   return el.fakeServer.checked ? fakeServer : realServer;
@@ -40,6 +44,27 @@ function run(effect) {
         .purchase({ uid: effect.uid, sku: effect.sku })
         .then((response) => dispatch({ type: "response", response }))
         .catch((err) => dispatch({ type: "failure", message: err.message }));
+      break;
+    case "open_checkout":
+      el.checkoutFrame.src = effect.url;
+      el.checkout.hidden = false;
+      break;
+    case "close_checkout":
+      el.checkout.hidden = true;
+      el.checkoutFrame.src = "about:blank";
+      break;
+    case "poll":
+      clearInterval(pollTimer);
+      pollTimer = setInterval(() => {
+        server()
+          .orderStatus(effect.orderId)
+          .then((status) => dispatch({ type: "order", state: status.state }))
+          .catch((err) => dispatch({ type: "failure", message: err.message }));
+      }, POLL_MS);
+      break;
+    case "stop_polling":
+      clearInterval(pollTimer);
+      pollTimer = null;
       break;
   }
 }
@@ -61,6 +86,8 @@ function statusText(s) {
       return `Tap your card on the pad to buy ${s.sku}.`;
     case "purchasing":
       return `Card ${s.uid} tapped. Asking the server…`;
+    case "awaiting_checkout":
+      return `Order ${s.orderId}: finish the payment in the checkout.`;
     case "result":
       return s.text;
     default:
@@ -74,6 +101,7 @@ for (const button of el.buttons) {
   });
 }
 el.dismiss.addEventListener("click", () => dispatch({ type: "dismiss" }));
+el.checkoutCancel.addEventListener("click", () => dispatch({ type: "dismiss" }));
 
 connectBridge(BRIDGE_URL, {
   onEvent(event) {

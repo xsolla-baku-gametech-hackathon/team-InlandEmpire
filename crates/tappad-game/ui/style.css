@@ -116,3 +116,27 @@ footer {
   font-size: 12px;
   cursor: pointer;
 }
+
+#status[data-state="awaiting_checkout"] { color: var(--gold); }
+
+#checkout:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+.checkout-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+#checkout-frame {
+  width: 480px;
+  height: 560px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+}
