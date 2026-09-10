@@ -3646,11 +3646,14 @@ name = "tappad-bridge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "clap",
  "futures-util",
+ "reqwest 0.12.28",
  "serde_json",
  "serialport",
  "tappad-protocol",
+ "tappad-server",
  "tokio",
  "tokio-tungstenite",
  "tracing",

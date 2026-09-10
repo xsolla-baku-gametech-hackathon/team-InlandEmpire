@@ -18,5 +18,10 @@ tokio-tungstenite.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
+[dev-dependencies]
+axum.workspace = true
+reqwest.workspace = true
+tappad-server = { path = "../tappad-server" }
+
 [lints]
 workspace = true
