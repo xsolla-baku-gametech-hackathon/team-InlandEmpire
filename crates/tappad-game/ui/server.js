@@ -1,11 +1,15 @@
-// HTTP client for tappad-server. Two calls, shapes in docs/protocol.md.
+// HTTP client for tappad-server. Three calls, shapes in docs/protocol.md.
 
 /**
  * @param {string} baseUrl  http://127.0.0.1:8080
- * @returns {{ purchase(req: {uid: string, sku: string}): Promise<object>, orderStatus(orderId: number): Promise<object> }}
+ * @returns {{ catalog(): Promise<object[]>, purchase(req: {uid: string, sku: string}): Promise<object>, orderStatus(orderId: number): Promise<object> }}
  */
 export function createServer(baseUrl) {
   return {
+    async catalog() {
+      const res = await fetch(`${baseUrl}/catalog`);
+      return readJson(res);
+    },
     async purchase(req) {
       const res = await fetch(`${baseUrl}/purchase`, {
         method: "POST",

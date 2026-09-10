@@ -72,3 +72,25 @@ test("unknown sku is refused before any server call", () => {
   assert.equal(state.name, "browsing");
   assert.deepEqual(effects, []);
 });
+
+test("catalog from the server replaces the items and drives what a sku grants", () => {
+  const items = [
+    { sku: "gems_100", name: "100 gems", description: "", price: 99, currency: "USD", image_url: null },
+    { sku: "gems_5000", name: "5000 gems", description: "", price: 3999, currency: "USD", image_url: null },
+  ];
+  const { state } = play([
+    { type: "catalog", items },
+    { type: "buy", sku: "gems_5000" },
+    { type: "tap", uid: "04A3B2C1" },
+    { type: "response", response: { status: "approved", order_id: 1, receipt_id: "rcpt-000001" } },
+  ]);
+  assert.equal(state.gems, 5000);
+  assert.deepEqual(state.items, items);
+  const gone = play([{ type: "catalog", items }, { type: "buy", sku: "gems_500" }]);
+  assert.equal(gone.state.name, "browsing");
+});
+
+test("an empty catalog keeps the defaults", () => {
+  const { state } = play([{ type: "catalog", items: [] }]);
+  assert.equal(state.items.length, 3);
+});

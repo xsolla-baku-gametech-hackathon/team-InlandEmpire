@@ -2,6 +2,8 @@
 // Mirrors the mock provider's registry in PLAN.md: Gold pays, Starter is over the limit.
 // Never used unless the "Fake server (dev)" box in the footer is ticked.
 
+import { DEFAULT_ITEMS } from "./shop.js";
+
 const GOLD = "04A3B2C1";
 const STARTER = "04D4E5F6";
 const SKUS = new Set(["gems_100", "gems_500", "gems_1200"]);
@@ -9,6 +11,10 @@ const SKUS = new Set(["gems_100", "gems_500", "gems_1200"]);
 export function createFakeServer() {
   let nextOrder = 1;
   return {
+    async catalog() {
+      await delay(100);
+      return DEFAULT_ITEMS;
+    },
     async purchase({ uid, sku }) {
       await delay(300);
       if (!SKUS.has(sku)) return { status: "declined", reason: "unknown_sku" };
