@@ -27,7 +27,7 @@ Five parts. Four are ours. Follow the numbers on the diagram for one purchase.
 | Part | Language | Job | Owner |
 |---|---|---|---|
 | Pad firmware | C++ (Arduino) | Read card UID, print one JSON line over USB serial | H |
-| `tappad-bridge` | Rust | Read serial lines, forward to `ws://127.0.0.1:8765`. `--fake` emits a tap every 4 s | C |
+| `tappad-bridge` | Rust | Read serial lines, forward to `ws://127.0.0.1:8765`. `--fake` emits a tap every 5 s | C |
 | `tappad-server` | Rust, axum, `:8080` | `POST /purchase` checks card limit, asks Xsolla for an order. `GET /orders/{id}` reports paid or not | A |
 | `tappad-game` | Tauri, Rust + one HTML page | Shop, gem counter, checkout in an iframe, polls until paid | B |
 | `tappad-protocol` | Rust | Shared types so field names cannot drift | C |
