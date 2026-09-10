@@ -28,8 +28,8 @@ Five parts. Four are ours. Follow the numbers on the diagram for one purchase.
 |---|---|---|---|
 | Pad firmware | C++ (Arduino) | Read card UID, print one JSON line over USB serial | H |
 | `tappad-bridge` | Rust | Read serial lines, forward to `ws://127.0.0.1:8765`. `--fake` emits a tap every 4 s | C |
-| `tappad-server` | Rust, axum, `:8080` | `POST /purchase` checks card limit, asks Xsolla for an order. `GET /orders/{id}` reports paid or not | AB |
-| `tappad-game` | Tauri, Rust + one HTML page | Shop, gem counter, checkout in an iframe, polls until paid | AB |
+| `tappad-server` | Rust, axum, `:8080` | `POST /purchase` checks card limit, asks Xsolla for an order. `GET /orders/{id}` reports paid or not | A |
+| `tappad-game` | Tauri, Rust + one HTML page | Shop, gem counter, checkout in an iframe, polls until paid | B |
 | `tappad-protocol` | Rust | Shared types so field names cannot drift | C |
 
 Xsolla is external. Two calls, both from the server. Details in `docs/xsolla.md`.
@@ -65,16 +65,24 @@ Two taps, one minute. Record it at hour 6 as the backup video.
 
 ## Team
 
-Three devs. Two of them, AB, work as a pair. C works alone. One hardware
-engineer H. One presenter P. Everyone uses Claude Code from the repo root so
-the same rules apply to every commit.
+Three devs, A, B and C, each on their own crate so nobody waits on anybody.
+One hardware engineer H. One presenter P. Everyone uses Claude Code from the
+repo root so the same rules apply to every commit.
 
-- AB own the money path end to end: Xsolla Publisher Account, the item, the
-  API key, the server, and the game that shows the checkout. One of them
-  holds the console login; the other never needs it. They split by hour, not
-  by crate: server first, game once `/purchase` answers.
+- A owns the money path: Xsolla Publisher Account, the item, the API key, and
+  `tappad-server`. A holds the console login; nobody else needs it. The API
+  key never leaves A's `.env`.
+- B owns `tappad-game`: the shop page, the WebSocket tap listener, the call to
+  `POST /purchase`, the checkout iframe, polling, the result screen. B builds
+  against the shapes in `docs/protocol.md` and never needs the server running
+  to make progress: until `/purchase` answers, B fakes the response in the page.
 - C owns the protocol crate, the bridge, tests and CI, and merges `dev` into
   `main` at each checkpoint.
+
+The contract between A and B is `docs/protocol.md` and `tappad-protocol`.
+Neither edits the other's crate. A change to a message shape goes through C's
+crate first, then both sides follow. Branches: A on `feat/server-*`, B on
+`feat/game-*`, so `git log` shows who did what.
 - H owns the firmware alone until the pad is plugged into the bridge.
 - P owns the deck from hour 1, the demo script, and the backup video.
 
@@ -83,16 +91,16 @@ the same rules apply to every commit.
 Build opens Sept 10 at 10:00. Code freeze Sept 11 at 12:00. Decks to organisers
 Sept 11 at 14:00. Pitches 15:00 to 16:40, 3 minutes plus 2 minutes Q&A.
 
-| Hour | AB | C | H | P |
-|---|---|---|---|---|
-| 1 | Server skeleton, mock provider, registry. `curl` returns approved and declined. Tauri window opens with three items and a gem counter | Protocol crate with tests. Workspace, CI green on `dev` | Firmware prints tap lines in the serial monitor | Problem slide, the person who has it |
-| 2 | Server routes stable, error mapping. WebSocket listener in the page, tap shows on screen | Bridge with `--fake` | Debounce, LED, second card | Demo script |
-| 3 | Xsolla client: create token, get order. `POST /purchase` from the page, declined path shown | Bridge on the real serial port | Plug pad into the bridge with C | Deck v1 |
-| 4 | Real order created in sandbox. iframe checkout, polling, gems on paid | Integration test: fake tap to gems, mock | Enclosure, cable strain | Talk track timed |
-| 5 | Real sandbox payment through the game. Result screen, error text for every decline | Merge to `main`, tag `v0.2.0-sandbox` | Full loop on real pad | Q&A prep |
-| 6 | Polish shop, remove debug. Bonus: `verify_signature` module with tests | README truthful, `docs/` current | Spare pad flashed | Backup video recorded |
-| 7 | Review C's crates | Clippy clean everywhere, tag `v0.3.0-demo`, review AB's crates | Rehearse the tap | Deck v2 |
-| 8 | Rehearse | Freeze `main` | Rehearse | Submit deck |
+| Hour | A | B | C | H | P |
+|---|---|---|---|---|---|
+| 1 | Server skeleton, mock provider, registry. `curl` returns approved and declined | Tauri window opens with three items and a gem counter | Protocol crate with tests. Workspace, CI green on `dev` | Firmware prints tap lines in the serial monitor | Problem slide, the person who has it |
+| 2 | Server routes stable, error mapping | WebSocket listener in the page, tap shows on screen | Bridge with `--fake` | Debounce, LED, second card | Demo script |
+| 3 | Xsolla client: create token, get order | `POST /purchase` from the page, declined path shown | Bridge on the real serial port | Plug pad into the bridge with C | Deck v1 |
+| 4 | Real order created in sandbox | iframe checkout, polling, gems on paid | Integration test: fake tap to gems, mock | Enclosure, cable strain | Talk track timed |
+| 5 | Real sandbox payment through the game, with B | Result screen, error text for every decline | Merge to `main`, tag `v0.2.0-sandbox` | Full loop on real pad | Q&A prep |
+| 6 | Bonus: `verify_signature` module with tests | Polish shop, remove debug | README truthful, `docs/` current | Spare pad flashed | Backup video recorded |
+| 7 | Review B's crate | Review A's crate | Clippy clean everywhere, tag `v0.3.0-demo`, review C's own with A | Rehearse the tap | Deck v2 |
+| 8 | Rehearse | Rehearse | Freeze `main` | Rehearse | Submit deck |
 
 Checkpoints, each one is a merge to `main` and a tag:
 
