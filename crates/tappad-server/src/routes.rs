@@ -102,6 +102,14 @@ impl From<JsonRejection> for ApiError {
     }
 }
 
+/// A card UID with all but its last four hex digits hidden. The UID is the tap
+/// credential: enough of it to tell two cards apart in a log, not enough to spend.
+fn masked(uid: &crate::types::CardUid) -> String {
+    let text = uid.as_str();
+    let tail = text.len().saturating_sub(4);
+    format!("...{}", &text[tail..])
+}
+
 /// Answer for a path this server does not serve.
 async fn not_found() -> ApiError {
     ApiError {
@@ -127,7 +135,7 @@ async fn purchase(
     let cleared = match state.registry.clear(&req.uid, &req.sku) {
         Ok(cleared) => cleared,
         Err(reason) => {
-            tracing::info!(uid = %req.uid, sku = %req.sku, ?reason, "declined");
+            tracing::info!(uid = masked(&req.uid), sku = %req.sku, ?reason, "declined");
             let declined = PurchaseResponse::Declined { reason };
             state
                 .registry
@@ -293,6 +301,13 @@ mod tests {
         let items: Vec<CatalogItem> = serde_json::from_slice(&body)?;
         let skus: Vec<&str> = items.iter().map(|i| i.sku.as_str()).collect();
         assert_eq!(skus, ["gems_100", "gems_500", "gems_1200"]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_logged_uid_shows_only_its_tail() -> anyhow::Result<()> {
+        assert_eq!(masked(&"04A3B2C1".parse()?), "...B2C1");
+        assert_eq!(masked(&"04A3B2C1D4E5F6".parse()?), "...E5F6");
         Ok(())
     }
 

@@ -59,7 +59,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("cannot bind {addr}"))?;
     tracing::info!(%addr, provider = %provider_name, "tappad-server listening");
-    axum::serve(listener, router(state)).await?;
+    axum::serve(listener, router(state))
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("stopping");
+        })
+        .await?;
     Ok(())
 }
 
