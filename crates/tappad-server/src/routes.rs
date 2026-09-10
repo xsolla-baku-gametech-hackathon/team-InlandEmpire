@@ -284,6 +284,92 @@ mod tests {
         Ok(())
     }
 
+    /// A provider that answers however a test needs, so the paths `MockProvider`
+    /// never takes (a real pending checkout, an upstream that is down) are covered.
+    struct Scripted(Outcome);
+
+    #[derive(Clone, Copy)]
+    enum Outcome {
+        Pending,
+        Transport,
+        Rejected,
+    }
+
+    #[async_trait::async_trait]
+    impl PaymentProvider for Scripted {
+        async fn create_order(
+            &self,
+            _: &crate::registry::Cleared,
+        ) -> Result<CreatedOrder, ProviderError> {
+            match self.0 {
+                Outcome::Pending => Ok(CreatedOrder::Pending {
+                    order_id: OrderId(12345),
+                    checkout_url: "https://sandbox-secure.xsolla.com/paystation4/?token=tok".into(),
+                }),
+                Outcome::Transport => Err(ProviderError::Transport(
+                    "https://store.xsolla.com/api/v3/project/315338/... connection refused".into(),
+                )),
+                Outcome::Rejected => Err(ProviderError::Rejected(
+                    "HTTP 401: bad key sk_live_abc".into(),
+                )),
+            }
+        }
+
+        async fn order_state(&self, _: OrderId) -> Result<OrderState, ProviderError> {
+            Ok(OrderState::New)
+        }
+
+        async fn catalog(&self) -> Result<Vec<CatalogItem>, ProviderError> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn scripted_app(outcome: Outcome) -> anyhow::Result<Router> {
+        Ok(router(AppState {
+            registry: Arc::new(Registry::demo()?),
+            provider: Arc::new(Scripted(outcome)),
+        }))
+    }
+
+    #[tokio::test]
+    async fn a_pending_checkout_reaches_the_game_whole() -> anyhow::Result<()> {
+        let req = Request::post("/purchase")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(r#"{"uid":"04A3B2C1","sku":"gems_500"}"#))?;
+        let res = scripted_app(Outcome::Pending)?.oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::OK);
+        let bytes = res.into_body().collect().await?.to_bytes();
+        let raw: serde_json::Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(raw["status"], "pending_payment");
+        assert_eq!(raw["order_id"], 12345);
+        assert_eq!(
+            raw["checkout_url"],
+            "https://sandbox-secure.xsolla.com/paystation4/?token=tok"
+        );
+        let typed: PurchaseResponse = serde_json::from_slice(&bytes)?;
+        assert!(matches!(typed, PurchaseResponse::PendingPayment { .. }));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_upstream_failure_is_502_and_says_nothing_about_upstream() -> anyhow::Result<()> {
+        for outcome in [Outcome::Transport, Outcome::Rejected] {
+            let req = Request::post("/purchase")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"uid":"04A3B2C1","sku":"gems_500"}"#))?;
+            let res = scripted_app(outcome)?.oneshot(req).await?;
+            assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
+            let body = error_body(res).await?;
+            assert_eq!(body.error, "payment provider unavailable");
+            assert!(
+                !body.error.contains("xsolla") && !body.error.contains("sk_live"),
+                "the client must not see upstream detail: {}",
+                body.error
+            );
+        }
+        Ok(())
+    }
+
     /// Reads the body of a non-2xx answer as the `ErrorBody` the protocol promises.
     async fn error_body(res: axum::response::Response) -> anyhow::Result<ErrorBody> {
         let bytes = res.into_body().collect().await?.to_bytes();
