@@ -81,8 +81,21 @@ footer {
 
 #status[data-state="waiting_for_tap"] { color: var(--gold); }
 
-#status[data-state="tap_detected"] { color: #7ed957; }
-#status[data-state="error"] { color: #ff6b6b; }
+#status[data-state="purchasing"] { color: var(--gold); }
+#status[data-state="result"] { color: #7ed957; }
+#status[data-state="declined"] { color: #ff6b6b; }
+
+.dismiss {
+  margin-top: 8px;
+  padding: 8px 22px;
+  border: 1px solid var(--muted);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.dev-toggle { color: var(--muted); font-size: 12px; }
 
 .devbar {
   margin: 12px 0 0;

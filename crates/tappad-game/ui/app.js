@@ -1,71 +1,93 @@
-// Wires the page to the bridge. Hour 2: a tap shows on screen, nothing leaves the window.
-// Hour 3 adds the POST /purchase call.
+// Wires DOM, bridge and server to the state machine in shop.js.
+// This file owns side effects; shop.js owns decisions.
 
-import { BRIDGE_URL } from "./config.js";
+import { BRIDGE_URL, SERVER_URL } from "./config.js";
 import { connectBridge } from "./bridge.js";
+import { createServer } from "./server.js";
+import { createFakeServer } from "./fake-server.js";
+import { initialState, transition } from "./shop.js";
 
-const gemCount = document.getElementById("gem-count");
-const status = document.getElementById("status");
-const link = document.getElementById("bridge-link");
-const buttons = document.querySelectorAll(".buy");
-const fakeTap = document.getElementById("fake-tap");
+const el = {
+  gems: document.getElementById("gem-count"),
+  status: document.getElementById("status"),
+  link: document.getElementById("bridge-link"),
+  buttons: document.querySelectorAll(".buy"),
+  dismiss: document.getElementById("dismiss"),
+  fakeTapDad: document.getElementById("fake-tap-dad"),
+  fakeTapKid: document.getElementById("fake-tap-kid"),
+  fakeServer: document.getElementById("fake-server"),
+};
 
-let gems = 0;
-let selectedSku = null;
+const realServer = createServer(SERVER_URL);
+const fakeServer = createFakeServer();
+let state = initialState;
 
-function setStatus(state, text) {
-  status.dataset.state = state;
-  status.textContent = text;
+function server() {
+  return el.fakeServer.checked ? fakeServer : realServer;
 }
 
-function setBuying(disabled) {
-  for (const b of buttons) b.disabled = disabled;
+function dispatch(event) {
+  const out = transition(state, event);
+  state = out.state;
+  render(state);
+  for (const effect of out.effects) run(effect);
 }
 
-function onPadEvent(event) {
-  switch (event.event) {
-    case "ready":
-      setStatus("browsing", `Pad ready, firmware ${event.firmware}.`);
-      break;
-    case "tap":
-      if (selectedSku) {
-        setStatus("tap_detected", `Tap detected: card ${event.uid} for ${selectedSku}.`);
-      } else {
-        setStatus("browsing", `Tap detected: card ${event.uid}. Pick an item first.`);
-      }
-      break;
-    case "error":
-      setStatus("error", `Pad error: ${event.message}`);
+function run(effect) {
+  switch (effect.type) {
+    case "purchase":
+      server()
+        .purchase({ uid: effect.uid, sku: effect.sku })
+        .then((response) => dispatch({ type: "response", response }))
+        .catch((err) => dispatch({ type: "failure", message: err.message }));
       break;
   }
 }
 
-for (const button of buttons) {
-  button.addEventListener("click", () => {
-    selectedSku = button.closest(".item").dataset.sku;
-    setBuying(true);
-    setStatus("waiting_for_tap", `Tap your card on the pad to buy ${selectedSku}.`);
-  });
+function render(s) {
+  el.gems.textContent = String(s.gems);
+  el.status.dataset.state = s.ok === false ? "declined" : s.name;
+  el.status.textContent = statusText(s);
+  for (const b of el.buttons) b.disabled = s.name !== "browsing";
+  el.dismiss.hidden = !(s.name === "result" || s.name === "waiting_for_tap");
+  el.dismiss.textContent = s.name === "result" ? "Continue" : "Cancel";
 }
 
+function statusText(s) {
+  switch (s.name) {
+    case "browsing":
+      return s.note;
+    case "waiting_for_tap":
+      return `Tap your card on the pad to buy ${s.sku}.`;
+    case "purchasing":
+      return `Card ${s.uid} tapped. Asking the server…`;
+    case "result":
+      return s.text;
+    default:
+      return "";
+  }
+}
+
+for (const button of el.buttons) {
+  button.addEventListener("click", () => {
+    dispatch({ type: "buy", sku: button.closest(".item").dataset.sku });
+  });
+}
+el.dismiss.addEventListener("click", () => dispatch({ type: "dismiss" }));
+
 connectBridge(BRIDGE_URL, {
-  onEvent: onPadEvent,
+  onEvent(event) {
+    if (event.event === "tap") dispatch({ type: "tap", uid: event.uid });
+    else if (event.event === "error") el.status.textContent = `Pad error: ${event.message}`;
+  },
   onLink(up) {
-    link.dataset.up = String(up);
-    link.textContent = up ? "pad connected" : "pad disconnected";
+    el.link.dataset.up = String(up);
+    el.link.textContent = up ? "pad connected" : "pad disconnected";
   },
 });
 
-// Dev tool, no hardware: injects a tap as if the bridge sent it.
-fakeTap.addEventListener("click", () => onPadEvent({ event: "tap", uid: "04A3B2C1" }));
+// Dev tools, no hardware: inject a Dad or Kid tap as if the bridge sent it.
+el.fakeTapDad.addEventListener("click", () => dispatch({ type: "tap", uid: "04A3B2C1" }));
+el.fakeTapKid.addEventListener("click", () => dispatch({ type: "tap", uid: "0B1C2D3E" }));
 
-// Exposed for the next step, which grants gems once the server says paid.
-window.tappad = {
-  grant(amount) {
-    gems += amount;
-    gemCount.textContent = String(gems);
-    selectedSku = null;
-    setBuying(false);
-    setStatus("browsing", `Added ${amount} gems.`);
-  },
-};
+render(state);
