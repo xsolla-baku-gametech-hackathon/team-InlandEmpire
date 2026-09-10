@@ -1,7 +1,12 @@
 //! HTTP client for `tappad-server`. Three routes, shapes in `docs/protocol.md`.
 
+use std::time::Duration;
+
 use serde::de::DeserializeOwned;
-use tappad_protocol::{CardUid, CatalogItem, ErrorBody, PurchaseRequest, PurchaseResponse, Sku};
+use tappad_protocol::{
+    CardUid, CatalogItem, ErrorBody, OrderId, OrderState, OrderStatus, PurchaseRequest,
+    PurchaseResponse, Sku,
+};
 
 use crate::{Config, SdkError};
 
@@ -10,6 +15,8 @@ use crate::{Config, SdkError};
 pub struct ServerClient {
     http: reqwest::Client,
     base: String,
+    poll_interval: Duration,
+    poll_timeout: Duration,
 }
 
 impl ServerClient {
@@ -24,6 +31,8 @@ impl ServerClient {
         Ok(ServerClient {
             http,
             base: config.server_url.trim_end_matches('/').to_owned(),
+            poll_interval: config.poll_interval,
+            poll_timeout: config.poll_timeout,
         })
     }
 
@@ -53,6 +62,42 @@ impl ServerClient {
             .send()
             .await;
         read(res).await
+    }
+
+    /// `GET /orders/{id}`: where the order is right now.
+    ///
+    /// # Errors
+    /// [`SdkError::Server`] with status 404 for an order this server never made;
+    /// otherwise as for [`ServerClient::catalog`].
+    pub async fn order_status(&self, order_id: OrderId) -> Result<OrderStatus, SdkError> {
+        let res = self
+            .http
+            .get(format!("{}/orders/{order_id}", self.base))
+            .send()
+            .await;
+        read(res).await
+    }
+
+    /// Polls the order every [`Config::poll_interval`](crate::Config) until it
+    /// is final, then returns that state. Call this after a
+    /// [`PurchaseResponse::PendingPayment`] while the checkout is open.
+    ///
+    /// # Errors
+    /// [`SdkError::PollTimeout`] after [`Config::poll_timeout`](crate::Config);
+    /// otherwise the first error from [`ServerClient::order_status`].
+    pub async fn wait_until_final(&self, order_id: OrderId) -> Result<OrderState, SdkError> {
+        let deadline = tokio::time::Instant::now() + self.poll_timeout;
+        loop {
+            let status = self.order_status(order_id).await?;
+            if status.state.is_final() {
+                return Ok(status.state);
+            }
+            if tokio::time::Instant::now() + self.poll_interval > deadline {
+                return Err(SdkError::PollTimeout(order_id));
+            }
+            tracing::debug!(%order_id, ?status.state, "order not final yet");
+            tokio::time::sleep(self.poll_interval).await;
+        }
     }
 }
 
@@ -140,6 +185,61 @@ mod tests {
             }
         );
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_approved_order_is_final_at_once() -> anyhow::Result<()> {
+        let client = ServerClient::new(&demo_server().await?)?;
+        let PurchaseResponse::Approved { order_id, .. } =
+            client.purchase(gold()?, Sku::new("gems_100")).await?
+        else {
+            anyhow::bail!("mock must approve");
+        };
+        assert!(client.order_status(order_id).await?.state.is_success());
+        assert!(client.wait_until_final(order_id).await?.is_success());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn an_unknown_order_is_404() -> anyhow::Result<()> {
+        let client = ServerClient::new(&demo_server().await?)?;
+        match client.order_status(OrderId(999_999)).await {
+            Err(SdkError::Server { status: 404, .. }) => Ok(()),
+            other => anyhow::bail!("expected 404, got {other:?}"),
+        }
+    }
+
+    /// A server whose only order is stuck in `new` forever.
+    async fn stuck_server() -> anyhow::Result<Config> {
+        use axum::routing::get;
+        use axum::Json;
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let app = axum::Router::new().route(
+            "/orders/{id}",
+            get(|| async {
+                Json(OrderStatus {
+                    order_id: OrderId(1),
+                    state: OrderState::New,
+                })
+            }),
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        Ok(Config {
+            server_url: format!("http://{addr}"),
+            poll_interval: Duration::from_millis(5),
+            poll_timeout: Duration::from_millis(40),
+            ..Config::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn a_stuck_order_times_out_with_its_id() -> anyhow::Result<()> {
+        let client = ServerClient::new(&stuck_server().await?)?;
+        match client.wait_until_final(OrderId(1)).await {
+            Err(SdkError::PollTimeout(OrderId(1))) => Ok(()),
+            other => anyhow::bail!("expected a poll timeout, got {other:?}"),
+        }
     }
 
     #[tokio::test]
