@@ -33,7 +33,7 @@ this file when it has verified the condition. Owner initials in brackets.
 
 - [ ] `tappad-bridge --fake` broadcasts taps on `:8765` [C]
 - [x] Game shows "tap detected" from the fake bridge [B]
-- [ ] Game calls `POST /purchase`, shows declined text [B]
+- [x] Game calls `POST /purchase`, shows declined text [B]
 - [x] Xsolla client creates a real sandbox order [A]
 - [ ] Bridge reads the real serial port [C]
 
