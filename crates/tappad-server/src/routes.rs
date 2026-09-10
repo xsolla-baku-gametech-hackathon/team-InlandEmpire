@@ -1,4 +1,4 @@
-//! HTTP surface: `POST /purchase` and `GET /orders/{id}`.
+//! HTTP surface: `GET /catalog`, `POST /purchase` and `GET /orders/{id}`.
 
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::provider::{CreatedOrder, PaymentProvider, ProviderError};
 use crate::registry::Registry;
-use crate::types::{OrderId, OrderStatus, PurchaseRequest, PurchaseResponse};
+use crate::types::{CatalogItem, OrderId, OrderStatus, PurchaseRequest, PurchaseResponse};
 
 /// Everything a handler needs.
 #[derive(Clone)]
@@ -32,6 +32,7 @@ pub fn router(state: AppState) -> Router {
         .allow_methods([Method::GET, Method::POST])
         .allow_headers([header::CONTENT_TYPE]);
     Router::new()
+        .route("/catalog", get(catalog))
         .route("/purchase", post(purchase))
         .route("/orders/{id}", get(order))
         .layer(cors)
@@ -54,6 +55,11 @@ impl axum::response::IntoResponse for Upstream {
         )
             .into_response()
     }
+}
+
+async fn catalog(State(state): State<AppState>) -> Result<Json<Vec<CatalogItem>>, Upstream> {
+    let items = state.provider.catalog().await.map_err(Upstream)?;
+    Ok(Json(items))
 }
 
 async fn purchase(
@@ -195,6 +201,18 @@ mod tests {
             .and_then(|v| v.to_str().ok())
             .unwrap_or_default();
         assert!(methods.contains("POST"), "{methods}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn catalog_lists_the_three_gem_packs() -> anyhow::Result<()> {
+        let req = Request::get("/catalog").body(Body::empty())?;
+        let res = app().oneshot(req).await?;
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = res.into_body().collect().await?.to_bytes();
+        let items: Vec<CatalogItem> = serde_json::from_slice(&body)?;
+        let skus: Vec<&str> = items.iter().map(|i| i.sku.as_str()).collect();
+        assert_eq!(skus, ["gems_100", "gems_500", "gems_1200"]);
         Ok(())
     }
 

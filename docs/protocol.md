@@ -20,6 +20,14 @@ Same objects as above, forwarded unchanged.
 
 ## Game to server
 
+`GET http://127.0.0.1:8080/catalog`, what the shop page renders. Comes from the
+Xsolla Store catalogue, or a fixed list of the same three items with the mock
+provider. `price` is in cents, `image_url` may be null.
+
+```json
+[{"sku":"gems_100","name":"100 gems","description":"100 gems","price":99,"currency":"USD","image_url":null}]
+```
+
 `POST http://127.0.0.1:8080/purchase`
 
 ```json
