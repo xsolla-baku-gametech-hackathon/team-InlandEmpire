@@ -6,3 +6,8 @@ crates/tappad-game/node_modules
 crates/tappad-game/dist
 crates/tappad-game/gen
 HANDOFF.md
+/.claude
+CHECKLIST.md
+PLAN.md
+CLAUDE.md
+skills-lock.json
