@@ -5,7 +5,7 @@ sandbox, project 315338.
 
 ## What is real
 
-- The pad, the card read, the card registry: Gold $50, Silver $10, Starter $1,
+- The pad, the card read, the card registry: Gold $50, All The Things (blue fob) $10, Starter $1,
   Blocked $0 per tap, a $500 cap per card for the run, all USD.
 - Order creation through the Xsolla Store API. Every sandbox purchase is a
   real Xsolla order with a real order id, visible in Publisher Account.

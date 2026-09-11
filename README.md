@@ -82,7 +82,7 @@ $500 cap for the run (`TAPPAD_CARD_CAP_CENTS`). All prices are USD.
 | Card | UID | Per tap |
 |---|---|---|
 | Gold, the white card with the Xsolla sticker | `8FF14EF1` | $50.00 |
-| Silver | `D9916906` | $10.00 |
+| All The Things, the blue fob | `D9916906` | $10.00 |
 | Blocked, the white card with the All The Things sticker | `C95DD006` | $0, always declined |
 | Gold, fake, from `tappad-bridge --fake` | `04A3B2C1` | $50.00 |
 | Starter, fake | `04D4E5F6` | $1.00 |

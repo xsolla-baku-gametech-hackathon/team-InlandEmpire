@@ -99,7 +99,7 @@ impl Registry {
             ("04D4E5F6", card("Starter", "starter-fake", 100)),
             ("8FF14EF1", card("Gold", "gold-1", 5_000)),
             ("C95DD006", card("Blocked", "blocked-1", 0)),
-            ("D9916906", card("Silver", "silver-1", 1_000)),
+            ("D9916906", card("All The Things", "silver-1", 1_000)),
         ] {
             cards.insert(uid.parse::<CardUid>()?, card);
         }
