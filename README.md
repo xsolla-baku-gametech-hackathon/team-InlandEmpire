@@ -146,9 +146,9 @@ lounge seats. Launcher integration.
 |---|---|
 | Server, Xsolla | Riad Mukhtarov |
 | Game, demo laptop | Aykhan Nazaraliyev |
-| Protocol, bridge, CI | |
-| Hardware | |
-| Presenter | |
+| Protocol, bridge, CI | Shikhi Ibrahimov |
+| Hardware | Mubariz Amirli |
+| Idea, testing, business | Turan Magsudov |
 
 ## Hackathon
 
