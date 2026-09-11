@@ -1,14 +1,22 @@
-# TapPad
+<h1 align="center">TapPad</h1>
 
-Tap a card on a USB pad, pay inside the game window, get the item.
-Tap-to-pay for desktop games, built on Xsolla.
+<p align="center">
+  Tap a card on a USB pad, pay inside the game window, get the item.<br>
+  Tap-to-pay for desktop games, built on Xsolla.
+</p>
 
-[![CI](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg)](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml"><img src="https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
-![demo: buy, tap, paid, then a declined card](docs/demo.gif)
+<p align="center">
+  <img src="docs/demo.gif" alt="demo: buy, tap, paid, then a declined card" width="720">
+</p>
 
-![architecture](docs/architecture.png)
+<p align="center">
+  <img src="docs/architecture.png" alt="architecture" width="720">
+</p>
 
 ## Run the demo, no hardware, no Xsolla account
 
