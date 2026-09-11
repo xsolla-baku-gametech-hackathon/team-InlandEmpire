@@ -1,7 +1,8 @@
 # Messages
 
 Every message is one JSON object. Types live in `crates/tappad-protocol`. The
-firmware writes the same shapes by hand.
+firmware writes the same shapes by hand. A game that would rather not handle
+these shapes itself can use one of the SDKs in `docs/sdk.md`.
 
 ## Pad to bridge, one line per message over USB serial, 115200 baud
 
@@ -43,7 +44,11 @@ Responses, one of:
 ```
 
 `reason` is one of `unknown_card`, `limit_exceeded`, `insufficient_funds`,
-`unknown_sku`. A decline is HTTP 200. HTTP 502 means the provider failed.
+`unknown_sku`. A decline is HTTP 200. HTTP 502 means the provider failed, 400
+a malformed body, 422 a `uid` that is not 4, 7 or 10 bytes of hex. The same
+`uid` and `sku` within 3 seconds gets the first answer again, so a double tap
+cannot buy twice. The server listens on 127.0.0.1 only and answers browser
+calls only from the game's own origins.
 
 Any non-2xx answer carries one body shape:
 
@@ -57,7 +62,9 @@ Any non-2xx answer carries one body shape:
 {"order_id":12345,"state":"paid"}
 ```
 
-`state` is one of `new`, `paid`, `done`, `canceled`, `expired`.
+`state` is one of `new`, `paid`, `done`, `canceled`, `expired`. HTTP 404 means
+this server process never created that order; state lives in memory and goes
+away on restart.
 
 ## Game flow
 
@@ -67,5 +74,5 @@ Browsing -> click Buy -> WaitingForTap -> tap -> POST /purchase
       paid or done -> grant gems -> Result
       canceled or expired -> Result "Payment was cancelled"
   approved -> grant gems -> Result
-  declined -> Result with the reason text
+  declined -> Result "Card declined.", the same text for every reason
 ```

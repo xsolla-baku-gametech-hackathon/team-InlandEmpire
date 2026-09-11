@@ -3,15 +3,12 @@
 Tap a card on a USB pad, pay inside the game window, get the item.
 Tap-to-pay for desktop games, built on Xsolla.
 
+[![CI](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg)](https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+![demo: buy, tap, paid, then a declined card](docs/demo.gif)
+
 ![architecture](docs/architecture.png)
-
-## How it works
-
-Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
-over USB. The bridge forwards it to the game. The game asks the server. The
-server checks the card's spending limit and asks Xsolla for an order. The
-Xsolla checkout appears inside the game window. The player confirms. The game
-polls until the order is paid and grants the gems.
 
 ## Run the demo, no hardware, no Xsolla account
 
@@ -45,8 +42,20 @@ pip install playwright && playwright install chromium
 ## Test
 
 ```
-cargo test --workspace
+cargo test --workspace                        # 114 tests, clippy pedantic, no unwrap/expect/panic outside tests
+node --test "crates/tappad-game/ui-tests/*.test.mjs"
+node --test "sdk/tappad-js/test/*.test.mjs"
 ```
+
+CI runs all three plus `cargo fmt --check`, `cargo clippy -D warnings` and `cargo audit` on every push.
+
+## How it works
+
+Player clicks Buy. Player taps a card on the pad. The pad prints the card ID
+over USB. The bridge forwards it to the game. The game asks the server. The
+server checks the card's spending limit and asks Xsolla for an order. The
+Xsolla checkout appears inside the game window. The player confirms. The game
+polls until the order is paid and grants the gems.
 
 ## Layout
 
@@ -55,6 +64,8 @@ cargo test --workspace
 | `crates/tappad-protocol` | Shared message types |
 | `crates/tappad-server` | Card registry, Xsolla client, `PaymentProvider` |
 | `crates/tappad-bridge` | Serial to WebSocket |
+| `crates/tappad-sdk` | Client library for Rust games: taps in, purchases out. For other games; the demo game talks to the server directly |
+| `sdk/tappad-js` | The same for browser and Tauri games, plain ES modules. Same scope as the Rust SDK |
 | `crates/tappad-game` | Tauri desktop app |
 | `firmware/` | Arduino sketch for ESP32 + RC522 |
 | `docs/` | Protocol, Xsolla setup, architecture |
@@ -65,19 +76,27 @@ Real: the pad, the card read, order creation in the Xsolla sandbox, the
 sandbox checkout inside the game, order status polling.
 
 Card identity is an allowlist of UIDs in code (`Registry::demo` in
-`crates/tappad-server/src/registry.rs`). The white card with the Xsolla sticker
-is listed and approved for every pack. The white card with the All The Things
-sticker is listed with a zero spending limit, so it is always declined. There
-is no card enrolment and no lookup anywhere. A phone paying with Apple Pay is
-declined because it emits a fresh random UID on every tap, so it can never
-match the list; that is the allowlist doing its job, not a rule about phones.
-The game shows "Card declined." for both kinds of decline; only the server log
-tells `limit_exceeded` from `unknown_card`.
+`crates/tappad-server/src/registry.rs`). Each card has a per-tap limit and a
+$500 cap for the run (`TAPPAD_CARD_CAP_CENTS`). All prices are USD.
+
+| Card | UID | Per tap |
+|---|---|---|
+| Gold, the white card with the Xsolla sticker | `8FF14EF1` | $50.00 |
+| All The Things, the blue fob | `D9916906` | $10.00 |
+| Blocked, the white card with the All The Things sticker | `C95DD006` | $0, always declined |
+| Gold, fake, from `tappad-bridge --fake` | `04A3B2C1` | $50.00 |
+| Starter, fake | `04D4E5F6` | $1.00 |
+
+There is no card enrolment and no lookup anywhere. A phone paying with Apple
+Pay is declined because it emits a fresh random UID on every tap, so it can
+never match the list; that is the allowlist doing its job, not a rule about
+phones. The game shows "Card declined." for both kinds of decline; only the
+server log tells `limit_exceeded` from `unknown_card`.
 
 Stand-in: tap-only completion. In production that is Xsolla Tokenization, a
 partner feature we do not have. With `TAPPAD_AUTOPAY=true` the server pays each
 sandbox order itself through a headless checkout (`scripts/autopay.py`), so a
-tap completes with no click in about 45 seconds. Without the flag a tap creates
+tap completes with no click in about 27 seconds, 4 of them Xsolla. Without the flag a tap creates
 the order and the player confirms with one click on the test card.
 
 The server keeps its state in memory. Order tokens, per-card spend and the
@@ -127,10 +146,16 @@ lounge seats. Launcher integration.
 
 ## Team
 
-Names here.
+| Role | Who |
+|---|---|
+| Server, Xsolla | Riad Mukhtarov |
+| Game, demo laptop | Aykhan Nazaraliyev |
+| Protocol, bridge, CI | Shikhi Ibrahimov |
+| Hardware | Mubariz Amirli |
+| Idea, testing, business | Turan Magsudov |
 
 ## Hackathon
 
-Xsolla Baku GameTech Hackathon, Sept 9–11. Organiser rules are in
+Xsolla Baku GameTech Hackathon, build days Sept 10–11. Organiser rules are in
 [`docs/hackathon-rules.md`](docs/hackathon-rules.md), conduct in
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

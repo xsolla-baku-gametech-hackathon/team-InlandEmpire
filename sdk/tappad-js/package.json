@@ -1,0 +1,12 @@
+{
+  "name": "tappad-sdk",
+  "version": "0.1.0",
+  "description": "Client library for browser and Tauri games that sell through TapPad",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

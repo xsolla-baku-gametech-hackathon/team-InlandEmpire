@@ -3699,6 +3699,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tappad-sdk"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "futures-util",
+ "reqwest 0.12.28",
+ "serde",
+ "tappad-bridge",
+ "tappad-protocol",
+ "tappad-server",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
 name = "tappad-server"
 version = "0.1.0"
 dependencies = [

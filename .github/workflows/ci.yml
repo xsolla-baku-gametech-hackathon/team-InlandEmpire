@@ -29,6 +29,19 @@ jobs:
         run: cargo test --workspace
       - name: Game page tests
         run: node --test "crates/tappad-game/ui-tests/*.test.mjs"
+      - name: JavaScript SDK tests
+        run: node --test "sdk/tappad-js/test/*.test.mjs"
       - name: No secrets committed
         run: |
           ! git grep -nE 'XSOLLA_API_KEY=[A-Za-z0-9]{8,}' -- ':!.env.example'
+
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
