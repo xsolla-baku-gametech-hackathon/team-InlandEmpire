@@ -8,6 +8,10 @@
 <p align="center">
   <a href="https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml"><img src="https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/MSRV-1.80%2B-lightgray.svg?logo=rust" alt="MSRV 1.80+"></a>
+  <a href="https://v2.tauri.app"><img src="https://img.shields.io/badge/Tauri-2-24C8D8.svg?logo=tauri&logoColor=white" alt="Tauri 2"></a>
+  <a href="https://developers.xsolla.com/doc/pay-station/"><img src="https://img.shields.io/badge/Xsolla-Pay%20Station-000000.svg" alt="Xsolla Pay Station"></a>
+  <a href="https://github.com/xsolla-baku-gametech-hackathon/team-InlandEmpire/commits/main"><img src="https://img.shields.io/github/commit-activity/t/xsolla-baku-gametech-hackathon/team-InlandEmpire" alt="commits"></a>
 </p>
 
 <p align="center">
