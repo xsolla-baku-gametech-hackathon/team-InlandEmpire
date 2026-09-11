@@ -44,7 +44,7 @@ gh pr create --base dev --fill
 
 One teammate reads the PR. Checks: tests added, docs updated, no `unwrap` in
 library code, no secrets, CI green. Then merge with a merge commit. Squash
-throws away commits, and commits are counted for a prize.
+throws away history.
 
 ```
 gh pr merge --merge
