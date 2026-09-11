@@ -1,4 +1,4 @@
-﻿//! Who may tap and what they may buy. Checked before any network call.
+//! Who may tap and what they may buy. Checked before any network call.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
